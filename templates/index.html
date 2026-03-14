@@ -324,9 +324,9 @@
             <div class="period-group">
                 <button class="period-btn" data-days="7">1주</button>
                 <button class="period-btn" data-days="30">1개월</button>
-                <button class="period-btn" data-days="90">3개월</button>
+                <button class="period-btn active" data-days="90">3개월</button>
                 <button class="period-btn" data-days="365">1년</button>
-                <button class="period-btn active" data-days="all">전체</button>
+                <button class="period-btn" data-days="all">전체</button>
             </div>
 
             <div class="dash-grid">
@@ -347,7 +347,7 @@
         let charts = {};
         let currentTiles;
         let isHeatMode = false;
-        let selectedPeriod = 'all';
+        let selectedPeriod = '90';
 
         const tileSets = {
             light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -551,13 +551,24 @@
             const cLabels = Object.keys(cMap).sort((a,b)=>cMap[b]-cMap[a]).slice(0, 8);
             renderChart('chart-categories', 'doughnut', { labels: cLabels, datasets: [{ data: cLabels.map(l=>cMap[l]), backgroundColor: ['#0071e3','#34c759','#ff9500','#af52de','#ff3b30','#5856d6','#ffcc00','#5ac8fa'], borderWidth: 0, hoverOffset: 15 }] }, { ...commonOpts, scales: {} });
 
-            // 5. Regions (Robust Parsing)
+            // 5. Regions (City Level Parsing)
             const rMap = {}; 
             data.forEach(d => { 
                 if(d.ADDRESS && d.ADDRESS.trim() !== '') { 
                     const parts = d.ADDRESS.split(' ');
-                    const city = parts[0].replace(/[^가-힣a-zA-Z]/g, '');
-                    if (city && city.length >= 2) rMap[city] = (rMap[city]||0)+1; 
+                    // Skip country name if it's the first word
+                    let idx = 0;
+                    if (parts[0].includes('대한민국') || parts[0].includes('South') || parts[0].includes('Korea')) {
+                        idx = 1;
+                    }
+                    if (parts[idx]) {
+                        let city = parts[idx].replace(/[^가-힣a-zA-Z]/g, '');
+                        // If it's a Province (ends with '도'), try to get the City (next word)
+                        if (city.endsWith('도') && parts[idx+1]) {
+                            city = parts[idx+1].replace(/[^가-힣a-zA-Z]/g, '');
+                        }
+                        if (city && city.length >= 2) rMap[city] = (rMap[city]||0)+1; 
+                    }
                 } 
             });
             const rLabels = Object.keys(rMap).sort((a,b)=>rMap[b]-rMap[a]).slice(0, 8);

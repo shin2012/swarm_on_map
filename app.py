@@ -30,7 +30,10 @@ def get_data():
         query = """
             SELECT 
                 FSQ_UNIXTIME, 
-                VENUE, 
+                CASE 
+                    WHEN VENUE_SUB LIKE '%점' THEN CONCAT(VENUE, ' (', VENUE_SUB, ')')
+                    ELSE VENUE 
+                END AS VENUE,
                 CATEGORY, 
                 LAT, 
                 LNG, 
