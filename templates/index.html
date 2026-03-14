@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FSQ Swarm Insights</title>
+    
+    <!-- Stable CSS Dependencies -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
+    <!-- JS Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/ko.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #1d1d1f;
+            --secondary: #0071e3;
+            --bg: #ffffff;
+            --sidebar-bg: #f5f5f7;
+            --border: #d2d2d7;
+            --text: #1d1d1f;
+            --text-mute: #86868b;
+            --header-h: 60px;
+            --sidebar-w: 320px;
+            --apple-font: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+            --glass: rgba(255, 255, 255, 0.9);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #f5f5f7;
+                --secondary: #0a84ff;
+                --bg: #000000;
+                --sidebar-bg: #1c1c1e;
+                --border: #38383a;
+                --text: #f5f5f7;
+                --text-mute: #8e8e93;
+                --glass: rgba(28, 28, 30, 0.9);
+            }
+        }
+
+        * { box-sizing: border-box; }
+        body, html { 
+            height: 100%; margin: 0; padding: 0; 
+            background: var(--bg); color: var(--text); 
+            font-family: var(--apple-font);
+            overflow: hidden; 
+        }
+        
+        .fa, .fas, .far, .fal, .fab, .fa-solid, .fa-regular, .fa-light, .fa-brands {
+            font-family: "Font Awesome 6 Free" !important;
+            font-weight: 900;
+        }
+
+        #navbar {
+            height: var(--header-h); background: var(--glass); 
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+            border-bottom: 1px solid var(--border); position: fixed; top: 0; left: 0; right: 0; z-index: 1001;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        }
+        .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.2em; cursor: pointer; }
+        .nav-brand i { color: var(--secondary); font-size: 1.2em; }
+        .nav-controls { display: flex; align-items: center; gap: 10px; }
+
+        .search-box { position: relative; width: 200px; }
+        .search-box input {
+            width: 100%; padding: 8px 12px 8px 32px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--sidebar-bg); color: var(--text); outline: none; font-size: 0.9em;
+            font-family: var(--apple-font);
+        }
+        .search-box i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-mute); }
+
+        .btn {
+            cursor: pointer; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 0.9em;
+            border: none; background: var(--sidebar-bg); color: var(--text); transition: background 0.2s;
+            display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+            font-family: var(--apple-font);
+        }
+        .btn:hover { background: var(--border); }
+        .btn.primary { background: var(--secondary); color: white; }
+        .btn.active { background: var(--secondary); color: white; }
+
+        .select-ui {
+            padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--sidebar-bg); color: var(--text); outline: none; cursor: pointer; font-size: 0.85em;
+            font-family: var(--apple-font);
+        }
+
+        #main-wrapper { display: flex; height: 100vh; padding-top: var(--header-h); position: relative; }
+        #sidebar {
+            width: var(--sidebar-w); background: var(--sidebar-bg); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; height: 100%;
+        }
+        .sidebar-head { padding: 15px 20px; font-weight: 700; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        #list { flex: 1; overflow-y: auto; }
+        .list-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .list-item:hover { background: var(--bg); }
+        .list-item .name { font-weight: 600; margin-bottom: 5px; color: var(--text); }
+        .list-item .meta { font-size: 0.85em; color: var(--text-mute); }
+
+        #map-container { flex: 1; position: relative; height: 100%; }
+        #map { height: 100%; width: 100%; }
+
+        /* FIX: Time Capsule Centering (relative to map-container) */
+        #time-capsule {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: calc(100% - 40px); max-width: 580px; z-index: 1000;
+            background: var(--glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 24px; border-radius: 24px; border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+
+        .capsule-info { text-align: center; font-weight: 700; color: var(--text); margin-bottom: 20px; font-size: 1em; }
+        
+        /* FIX: Scrubber and handle alignment */
+        .scrubber-wrapper { 
+            width: 100%; 
+            padding: 0 11px; /* Half of handle width (22px) to allow center alignment at ends */
+            box-sizing: border-box;
+        }
+        #scrubber { 
+            height: 6px; border: none; background: var(--border); box-shadow: none; 
+            margin: 0; width: 100%; position: relative;
+        }
+        #scrubber .noUi-connect { background: var(--secondary); }
+        #scrubber .noUi-handle {
+            width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid var(--secondary);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer; top: -9px; outline: none;
+            right: -11px !important; /* Forces the center of the handle to align with the data point */
+        }
+        #scrubber .noUi-handle::before, #scrubber .noUi-handle::after { display: none; }
+        
+        .capsule-dates { 
+            display: flex; justify-content: space-between; 
+            font-size: 0.85em; color: var(--text-mute); font-weight: 700; 
+            margin-top: 15px; padding: 0 11px; /* Matches scrubber-wrapper padding */
+        }
+
+        /* Markers & Icons centering fix */
+        .marker-pin {
+            width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
+            background: var(--secondary); position: absolute; transform: rotate(-45deg);
+            left: 50%; top: 50%; margin: -16px 0 0 -16px; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .marker-pin i { 
+            transform: rotate(45deg); 
+            color: white; font-size: 14px; 
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 100%;
+        }
+        
+        .leaflet-popup-content-wrapper { border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
+        .leaflet-popup-content { font-size: 15px !important; margin: 15px !important; line-height: 1.5; width: 280px !important; }
+        .pop-title { font-weight: 700; font-size: 1.2em; margin-bottom: 6px; color: var(--text); }
+        .pop-info { color: var(--text-mute); font-size: 0.9em; margin-bottom: 8px; }
+        .pop-img { width: 100%; border-radius: 10px; margin-top: 10px; object-fit: cover; max-height: 200px; }
+
+        /* Dashboard */
+        #dash-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg); z-index: 2000; overflow-y: auto;
+        }
+        .dash-content { max-width: 1200px; margin: 0 auto; padding: 60px 20px 80px 20px; }
+        .dash-header { text-align: center; margin-bottom: 40px; }
+        .period-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 40px; flex-wrap: wrap; }
+        .period-btn {
+            padding: 10px 22px; border-radius: 25px; border: 1px solid var(--border); background: var(--sidebar-bg);
+            color: var(--text); font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.9em;
+            font-family: var(--apple-font);
+        }
+        .period-btn.active { background: var(--secondary); color: white; border-color: var(--secondary); }
+
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 25px; }
+        .card { 
+            background: var(--bg); padding: 30px; border-radius: 24px; border: 1px solid var(--border); 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04); display: flex; flex-direction: column; height: 420px; 
+        }
+        .card h3 { margin: 0 0 25px 0; font-size: 1.2em; font-weight: 700; display: flex; align-items: center; gap: 10px; color: var(--text); }
+        .chart-box { flex: 1; position: relative; width: 100%; min-height: 0; }
+
+        .close-btn {
+            position: fixed; top: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%;
+            background: var(--sidebar-bg); border: 1px solid var(--border); color: var(--text);
+            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; z-index: 2001;
+            transition: all 0.2s;
+        }
+        .close-btn:hover { background: var(--border); }
+
+        .handle {
+            display: none; width: 40px; height: 5px; background: var(--border);
+            border-radius: 3px; margin: 10px auto 5px auto; flex-shrink: 0;
+        }
+
+        .fab-group {
+            position: fixed; bottom: 85px; right: 20px;
+            display: none; flex-direction: column; gap: 12px; z-index: 1001;
+        }
+        .btn.fab {
+            width: 54px; height: 54px; border-radius: 50%; justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-size: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            .nav-brand span { display: none; }
+            .nav-controls .search-box { display: none; }
+            .nav-controls.search-active .search-box { display: block; position: fixed; top: 60px; left: 0; width: 100%; padding: 10px; background: var(--bg); border-bottom: 1px solid var(--border); z-index: 1001; }
+            .nav-controls.search-active .search-box input { width: 100%; }
+            #mobile-search-toggle { display: inline-flex !important; }
+            
+            #sidebar { 
+                position: fixed; bottom: 0; left: 0; width: 100%; height: 75%;
+                transform: translateY(calc(100% - 70px)); 
+                transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+                z-index: 1002; background: var(--bg);
+                border-top: 1px solid var(--border); border-right: none;
+                border-radius: 24px 24px 0 0;
+                box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+                display: flex; flex-direction: column;
+            }
+            #sidebar.active { transform: translateY(0); }
+            .handle { display: block; }
+            .sidebar-head { padding-top: 0; }
+            
+            .fab-group { display: flex; }
+            #navbar .btn#open-report, #navbar .btn#my-loc { display: none; }
+
+            .dash-grid { grid-template-columns: 1fr; }
+            #time-capsule { 
+                width: 92%; bottom: 90px; left: 50% !important; 
+                transform: translateX(-50%) !important; padding: 18px;
+            }
+            .card { height: 350px; padding: 20px; }
+            #list-toggle { display: inline-flex; }
+            #close-sidebar { display: none; }
+        }
+        @media (min-width: 769px) {
+            #list-toggle { display: none; }
+            #close-sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav id="navbar">
+        <div class="nav-brand" onclick="location.reload()">
+            <i class="fa-solid fa-map-location-dot"></i> <span>Swarm Insights</span>
+        </div>
+        
+        <div class="nav-controls">
+            <button class="btn" id="mobile-search-toggle" style="display: none;"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="search-input" placeholder="장소 또는 카테고리...">
+            </div>
+            <select class="select-ui" id="map-theme-select">
+                <option value="auto">자동 테마</option>
+                <option value="light">라이트</option>
+                <option value="dark">다크</option>
+                <option value="voyager">보이저</option>
+                <option value="satellite">위성</option>
+            </select>
+            <button class="btn" id="heat-toggle"><i class="fa-solid fa-fire-flame-curved"></i> 히트맵</button>
+            <button class="btn" id="list-toggle"><i class="fa-solid fa-list-ul"></i> 리스트</button>
+            <button class="btn primary" id="open-report"><i class="fa-solid fa-chart-pie"></i> 리포트</button>
+            <button class="btn" id="my-loc"><i class="fa-solid fa-location-crosshairs"></i></button>
+        </div>
+    </nav>
+
+    <div id="main-wrapper">
+        <aside id="sidebar">
+            <div class="handle" onclick="toggleSidebar()"></div>
+            <div class="sidebar-head">
+                <span>방문 히스토리</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="count-badge" style="background: var(--secondary); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em;">0</span>
+                    <button class="btn" id="close-sidebar" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div id="list"></div>
+        </aside>
+
+        <div class="fab-group">
+            <button class="btn fab primary" id="open-report-fab"><i class="fa-solid fa-chart-pie"></i></button>
+            <button class="btn fab" id="my-loc-fab"><i class="fa-solid fa-location-crosshairs"></i></button>
+        </div>
+        
+        <main id="map-container">
+            <div id="map"></div>
+            <div id="time-capsule">
+                <div class="capsule-info" id="slider-label">데이터 동기화 중...</div>
+                <div class="scrubber-wrapper">
+                    <div id="scrubber"></div>
+                </div>
+                <div class="capsule-dates">
+                    <span id="date-start">-</span>
+                    <span id="date-end">-</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="dash-modal">
+        <button class="close-btn" id="close-report"><i class="fa-solid fa-xmark"></i></button>
+        <div class="dash-content">
+            <div class="dash-header">
+                <h1 style="font-weight: 800; font-size: 2.5em; margin-bottom: 10px;">데이터 분석 리포트</h1>
+                <p id="dash-summary-text" style="color: var(--text-mute); font-size: 1.1em;"></p>
+            </div>
+
+            <div class="period-group">
+                <button class="period-btn" data-days="7">1주</button>
+                <button class="period-btn" data-days="30">1개월</button>
+                <button class="period-btn" data-days="90">3개월</button>
+                <button class="period-btn" data-days="365">1년</button>
+                <button class="period-btn active" data-days="all">전체</button>
+            </div>
+
+            <div class="dash-grid">
+                <div class="card"><h3><i class="fa-solid fa-chart-line" style="color:#0071e3;"></i> 방문 추이</h3><div class="chart-box"><canvas id="chart-timeline"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-clock" style="color:#34c759;"></i> 시간대 분포</h3><div class="chart-box"><canvas id="chart-hourly"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-calendar-day" style="color:#af52de;"></i> 요일 선호도</h3><div class="chart-box"><canvas id="chart-weekday"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-tags" style="color:#ff9500;"></i> 주요 카테고리</h3><div class="chart-box"><canvas id="chart-categories"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-map-pin" style="color:#ffcc00;"></i> 방문 지역</h3><div class="chart-box"><canvas id="chart-regions"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-crown" style="color:#ff2d55;"></i> 최다 방문 장소</h3><div class="chart-box"><canvas id="chart-venues"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let map, markers, slider, heatLayer;
+        let filteredMarkers = [];
+        let charts = {};
+        let currentTiles;
+        let isHeatMode = false;
+        let selectedPeriod = 'all';
+
+        const tileSets = {
+            light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        };
+
+        const getTheme = () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+        function getIconClass(cat) {
+            if (!cat) return 'fa-location-dot';
+            cat = cat.toLowerCase();
+            if (cat.includes('food') || cat.includes('restaurant') || cat.includes('korean') || cat.includes('japanese')) return 'fa-utensils';
+            if (cat.includes('cafe') || cat.includes('coffee') || cat.includes('dessert')) return 'fa-mug-hot';
+            if (cat.includes('pub') || cat.includes('bar') || cat.includes('liquor')) return 'fa-beer-mug-empty';
+            if (cat.includes('store') || cat.includes('shop') || cat.includes('mall') || cat.includes('market')) return 'fa-bag-shopping';
+            if (cat.includes('park') || cat.includes('mountain') || cat.includes('forest')) return 'fa-tree';
+            if (cat.includes('subway') || cat.includes('train') || cat.includes('station') || cat.includes('bus')) return 'fa-subway';
+            if (cat.includes('home') || cat.includes('residence')) return 'fa-house';
+            if (cat.includes('office') || cat.includes('work') || cat.includes('corporate')) return 'fa-briefcase';
+            if (cat.includes('cinema') || cat.includes('theater')) return 'fa-film';
+            if (cat.includes('gym') || cat.includes('fitness') || cat.includes('sport')) return 'fa-dumbbell';
+            return 'fa-location-dot';
+        }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([37.5665, 126.9780], 11);
+            L.control.zoom({ position: 'topright' }).addTo(map);
+            let theme = document.getElementById('map-theme-select').value;
+            if (theme === 'auto') theme = getTheme();
+            currentTiles = L.tileLayer(tileSets[theme], { attribution: '&copy; CARTO' }).addTo(map);
+            markers = L.markerClusterGroup({ 
+                maxClusterRadius: 50,
+                showCoverageOnHover: false,
+                iconCreateFunction: function(cluster) {
+                    return L.divIcon({ 
+                        html: `<div style="background:var(--secondary); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:800; border:3px solid white; box-shadow:0 2px 10px rgba(0,0,0,0.2);">${cluster.getChildCount()}</div>`, 
+                        className: '', iconSize: [40, 40] 
+                    });
+                }
+            });
+            map.addLayer(markers);
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/data?t=' + Date.now());
+                const raw = await res.json();
+                allData = raw.map(d => ({
+                    ...d, FSQ_UNIXTIME: parseInt(d.FSQ_UNIXTIME),
+                    latNum: parseFloat(d.LAT), lngNum: parseFloat(d.LNG)
+                })).filter(d => d.FSQ_UNIXTIME > 0 && !isNaN(d.latNum));
+                allData.sort((a,b) => a.FSQ_UNIXTIME - b.FSQ_UNIXTIME);
+                if (allData.length > 0) {
+                    initScrubber();
+                    createMarkers(allData);
+                    applyAllFilters();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function initScrubber() {
+            const el = document.getElementById('scrubber');
+            const min = allData[0].FSQ_UNIXTIME, max = allData[allData.length-1].FSQ_UNIXTIME;
+            document.getElementById('date-start').innerText = moment.unix(min).format('YYYY.MM.DD');
+            document.getElementById('date-end').innerText = moment.unix(max).format('YYYY.MM.DD');
+            if (slider) slider.destroy();
+            slider = noUiSlider.create(el, { start: [min, max], connect: true, range: { min, max }, step: 86400 });
+            slider.on('update', (vals) => {
+                const s = parseInt(vals[0]), e = parseInt(vals[1]);
+                document.getElementById('slider-label').innerText = `${moment.unix(s).format('YYYY.MM.DD')} ~ ${moment.unix(e).format('YYYY.MM.DD')}`;
+                applyAllFilters();
+            });
+        }
+
+        function createMarkers(data) {
+            markers.clearLayers();
+            filteredMarkers = [];
+            data.forEach(d => {
+                let html = `<div class='pop-title'>${d.VENUE}</div><div class='pop-info'><b><i class="fa-solid fa-tag"></i></b> ${d.CATEGORY || '-'}<br><b><i class="fa-solid fa-clock"></i></b> ${d.TIME_KST}</div>`;
+                if (d.SHOUT) html += `<div style="font-size:0.9em; font-style:italic; border-left:4px solid var(--secondary); padding-left:12px; margin:15px 0; color:var(--text); line-height:1.4;">"${d.SHOUT}"</div>`;
+                if (d.PHOTO) html += `<img src="${d.PHOTO}" class="pop-img">`;
+                
+                const iconHtml = `<div class='marker-pin'><i class="fa-solid ${getIconClass(d.CATEGORY)}"></i></div>`;
+                const m = L.marker([d.latNum, d.lngNum], { 
+                    icon: L.divIcon({ className: '', html: iconHtml, iconSize: [32, 45], iconAnchor: [16, 45], popupAnchor: [0, -40] }) 
+                }).bindPopup(html);
+                m.item = d;
+                filteredMarkers.push(m);
+            });
+        }
+
+        function applyAllFilters() {
+            if (!slider) return;
+            const range = slider.get();
+            const s = parseInt(range[0]), e = parseInt(range[1]);
+            const q = document.getElementById('search-input').value.toLowerCase();
+            const filtered = allData.filter(d => (d.FSQ_UNIXTIME >= s && d.FSQ_UNIXTIME <= e) && (d.VENUE.toLowerCase().includes(q) || (d.CATEGORY && d.CATEGORY.toLowerCase().includes(q))));
+            
+            if (heatLayer) map.removeLayer(heatLayer);
+            markers.clearLayers();
+            if (isHeatMode) {
+                const pts = filtered.map(d => [d.latNum, d.lngNum, 0.5]);
+                heatLayer = L.heatLayer(pts, { radius: 25, blur: 15, maxZoom: 15 }).addTo(map);
+            } else {
+                filteredMarkers.forEach(m => {
+                    const d = m.item;
+                    if (d.FSQ_UNIXTIME >= s && d.FSQ_UNIXTIME <= e && (d.VENUE.toLowerCase().includes(q) || (d.CATEGORY && d.CATEGORY.toLowerCase().includes(q)))) markers.addLayer(m);
+                });
+            }
+            renderSidebarList(filtered);
+            document.getElementById('count-badge').innerText = filtered.length;
+        }
+
+        function renderSidebarList(data) {
+            const box = document.getElementById('list'); box.innerHTML = '';
+            [...data].reverse().slice(0, 100).forEach(d => {
+                const div = document.createElement('div'); div.className = 'list-item';
+                div.innerHTML = `<div class='name'>${d.VENUE}</div><div class='meta'><i class="fa-solid ${getIconClass(d.CATEGORY)}" style="width:14px"></i> ${moment.unix(d.FSQ_UNIXTIME).format('YY.MM.DD HH:mm')} | ${d.CATEGORY || '-'}</div>`;
+                div.onclick = () => {
+                    map.setView([d.latNum, d.lngNum], 16);
+                    const m = filteredMarkers.find(fm => fm.item.FSQ_UNIXTIME === d.FSQ_UNIXTIME);
+                    if (m && !isHeatMode) markers.zoomToShowLayer(m, () => m.openPopup());
+                    if (window.innerWidth <= 768) toggleSidebar();
+                };
+                box.appendChild(div);
+            });
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            setTimeout(() => map.invalidateSize(), 400);
+        }
+
+        function openDashboard() {
+            document.getElementById('dash-modal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            if (allData.length === 0) return;
+            const last = allData[allData.length - 1].FSQ_UNIXTIME;
+            let start = allData[0].FSQ_UNIXTIME;
+            if (selectedPeriod !== 'all') start = last - (parseInt(selectedPeriod) * 24 * 3600);
+            const filtered = allData.filter(d => d.FSQ_UNIXTIME >= start && d.FSQ_UNIXTIME <= last);
+            document.getElementById('dash-summary-text').innerText = `${moment.unix(start).format('YYYY.MM.DD')} ~ ${moment.unix(last).format('YYYY.MM.DD')} (${filtered.length}건 방문)`;
+            setTimeout(() => renderDashboardCharts(filtered), 200);
+        }
+
+        function renderChart(id, type, data, options) {
+            if (charts[id]) charts[id].destroy();
+            const canvas = document.getElementById(id); if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            charts[id] = new Chart(ctx, { type, data, options });
+        }
+
+        function renderDashboardCharts(data) {
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const tColor = isDark ? '#f5f5f7' : '#1d1d1f';
+            const gColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            
+            const commonOpts = { 
+                responsive: true, maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { position: 'bottom', labels: { color: tColor, font: { family: 'Pretendard', size: 11, weight: '500' }, padding: 15 } },
+                    tooltip: { padding: 12, borderRadius: 10, titleFont: { size: 14 }, bodyFont: { size: 13 } }
+                },
+                scales: { 
+                    x: { grid: { color: gColor }, ticks: { color: tColor, font: { family: 'Pretendard' } } }, 
+                    y: { grid: { color: gColor }, ticks: { color: tColor, font: { family: 'Pretendard' } } } 
+                },
+                layout: { padding: { top: 10, bottom: 10 } }
+            };
+
+            const horizontalOpts = {
+                ...commonOpts,
+                indexAxis: 'y',
+                scales: {
+                    x: { beginAtZero: true, grid: { color: gColor }, ticks: { color: tColor, font: { family: 'Pretendard' } } },
+                    y: { grid: { display: false }, ticks: { color: tColor, font: { family: 'Pretendard', weight: '600' } } }
+                }
+            };
+
+            // 1. Timeline
+            const tMap = {}; data.forEach(d => { const m = moment.unix(d.FSQ_UNIXTIME).format('YY-MM'); tMap[m] = (tMap[m]||0)+1; });
+            const tLabels = Object.keys(tMap).sort();
+            renderChart('chart-timeline', 'line', { labels: tLabels, datasets: [{ label: '방문수', data: tLabels.map(l=>tMap[l]), borderColor: '#0071e3', borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#0071e3', tension: 0.4, fill: true, backgroundColor: 'rgba(0,113,227,0.1)' }] }, commonOpts);
+
+            // 2. Hourly
+            const hArr = Array(24).fill(0); data.forEach(d => hArr[moment.unix(d.FSQ_UNIXTIME).hour()]++);
+            renderChart('chart-hourly', 'bar', { labels: Array.from({length:24},(_,i)=>i+'시'), datasets: [{ label: '방문수', data: hArr, backgroundColor: '#34c759', borderRadius: 5 }] }, commonOpts);
+
+            // 3. Weekday
+            const wArr = Array(7).fill(0); data.forEach(d => wArr[moment.unix(d.FSQ_UNIXTIME).day()]++);
+            renderChart('chart-weekday', 'radar', { labels: ['일','월','화','수','목','금','토'], datasets: [{ label: '활동량', data: wArr, borderColor: '#af52de', backgroundColor: 'rgba(175,82,222,0.2)', borderWidth: 2, pointRadius: 3 }] }, { ...commonOpts, scales: { r: { grid: { color: gColor }, angleLines: { color: gColor }, pointLabels: { color: tColor, font: { size: 12, weight: '600' } }, ticks: { display: false } } } });
+
+            // 4. Categories
+            const cMap = {}; data.forEach(d => { if(d.CATEGORY) cMap[d.CATEGORY] = (cMap[d.CATEGORY]||0)+1; });
+            const cLabels = Object.keys(cMap).sort((a,b)=>cMap[b]-cMap[a]).slice(0, 8);
+            renderChart('chart-categories', 'doughnut', { labels: cLabels, datasets: [{ data: cLabels.map(l=>cMap[l]), backgroundColor: ['#0071e3','#34c759','#ff9500','#af52de','#ff3b30','#5856d6','#ffcc00','#5ac8fa'], borderWidth: 0, hoverOffset: 15 }] }, { ...commonOpts, scales: {} });
+
+            // 5. Regions (Robust Parsing)
+            const rMap = {}; 
+            data.forEach(d => { 
+                if(d.ADDRESS && d.ADDRESS.trim() !== '') { 
+                    const parts = d.ADDRESS.split(' ');
+                    const city = parts[0].replace(/[^가-힣a-zA-Z]/g, '');
+                    if (city && city.length >= 2) rMap[city] = (rMap[city]||0)+1; 
+                } 
+            });
+            const rLabels = Object.keys(rMap).sort((a,b)=>rMap[b]-rMap[a]).slice(0, 8);
+            renderChart('chart-regions', 'bar', { labels: rLabels, datasets: [{ label: '방문수', data: rLabels.map(l=>rMap[l]), backgroundColor: '#ffcc00', borderRadius: 5 }] }, horizontalOpts);
+
+            // 6. Venues
+            const vMap = {}; data.forEach(d => vMap[d.VENUE] = (vMap[d.VENUE]||0)+1);
+            const vList = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+            renderChart('chart-venues', 'bar', { labels: vList.map(v=>v[0]), datasets: [{ label: '방문수', data: vList.map(v=>v[1]), backgroundColor: '#ff2d55', borderRadius: 5 }] }, horizontalOpts);
+        }
+
+        // Bindings
+        document.getElementById('map-theme-select').onchange = (e) => {
+            let t = e.target.value === 'auto' ? getTheme() : e.target.value;
+            map.removeLayer(currentTiles);
+            currentTiles = L.tileLayer(tileSets[t], { attribution: '&copy; CARTO' }).addTo(map);
+        };
+        document.getElementById('heat-toggle').onclick = (e) => { isHeatMode = !isHeatMode; e.target.classList.toggle('active', isHeatMode); applyAllFilters(); };
+        document.getElementById('search-input').oninput = applyAllFilters;
+        document.getElementById('list-toggle').onclick = toggleSidebar;
+        document.getElementById('close-sidebar').onclick = toggleSidebar;
+        document.getElementById('open-report').onclick = openDashboard;
+        document.getElementById('open-report-fab').onclick = openDashboard;
+        document.getElementById('close-report').onclick = () => { document.getElementById('dash-modal').style.display='none'; document.body.style.overflow='auto'; };
+        document.querySelectorAll('.period-btn').forEach(b => b.onclick = (e) => { document.querySelectorAll('.period-btn').forEach(btn=>btn.classList.remove('active')); e.target.classList.add('active'); selectedPeriod = e.target.dataset.days; updateDashboard(); });
+        document.getElementById('my-loc').onclick = () => map.locate({setView: true, maxZoom: 15});
+        document.getElementById('my-loc-fab').onclick = () => map.locate({setView: true, maxZoom: 15});
+        document.getElementById('mobile-search-toggle').onclick = () => {
+            document.querySelector('.nav-controls').classList.toggle('search-active');
+        };
+
+        window.onload = () => { initMap(); fetchData(); setTimeout(()=>map.invalidateSize(), 300); };
+    </script>
+</body>
+</html>
