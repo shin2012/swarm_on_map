@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swarm Insights - 체크인 관리</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <style>
+        :root {
+            --bg: #f5f5f7; --bg-card: #ffffff; --border: #d2d2d7; --text: #1d1d1f; --text-mute: #86868b; --secondary: #0071e3;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg: #1c1c1e; --bg-card: #2c2c2e; --border: #3a3a3c; --text: #f5f5f7; --text-mute: #8e8e93; }
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 1.8em; font-weight: 800; }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card h3 { margin: 0 0 15px 0; font-size: 1.1em; color: var(--text-mute); }
+        
+        /* Layout Grid */
+        .manage-grid { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
+        
+        /* Horizontal Form Layout */
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+        .form-group { flex: 1; display: flex; flex-direction: column; gap: 5px; position: relative; min-width: 120px; }
+        .form-group label { font-size: 0.8em; font-weight: 700; color: var(--text-mute); }
+        .form-group input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
+        .btn-primary { background: var(--secondary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        
+        /* Autocomplete */
+        .autocomplete-results { position: absolute; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 100%; z-index: 1000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); top: 100%; left: 0; max-height: 300px; overflow-y: auto; }
+        .result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid var(--border); }
+        .result-item:hover { background: var(--bg); }
+        .result-item .addr { font-size: 0.75em; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Table Layout */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.85em; }
+        th { color: var(--text-mute); font-weight: 600; background: var(--bg); }
+        .row-edit input { width: 100%; padding: 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.9em; }
+        
+        /* Pagination */
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
+        .btn-nav { background: var(--bg-card); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--text); font-size: 0.9em; }
+        .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-sm { padding: 4px 8px; border-radius: 6px; font-size: 0.8em; cursor: pointer; border: none; margin-right: 4px; }
+        .btn-edit { background: #0071e3; color: white; }
+        .btn-delete { background: #ff3b30; color: white; }
+        .btn-save { background: #34c759; color: white; }
+        .btn-cancel { background: var(--text-mute); color: white; }
+        
+        #mini-map { height: 350px; width: 100%; border-radius: 12px; border: 1px solid var(--border); }
+        
+        .search-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .search-row input { padding: 6px 15px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 220px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fa-solid fa-list-check"></i> 체크인 관리</h1>
+            <a href="/" class="btn-primary" style="text-decoration:none;"><i class="fa-solid fa-map"></i> 지도로 돌아가기</a>
+        </div>
+
+        <div class="manage-grid">
+            <div class="left-panel">
+                <!-- Add Section -->
+                <div class="card">
+                    <h3><i class="fa-solid fa-plus-circle"></i> 새 체크인 추가</h3>
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1.5;">
+                            <label>장소명</label>
+                            <input type="text" id="add-venue" placeholder="검색/입력" autocomplete="off">
+                            <input type="hidden" id="add-venue-only">
+                            <input type="hidden" id="add-venue-id">
+                            <input type="hidden" id="add-country">
+                            <input type="hidden" id="add-countrycode">
+                            <div id="venue-results" class="autocomplete-results"></div>
+                        </div>
+                        <div class="form-group" style="flex: 0.8;"><label>지점명</label><input type="text" id="add-venue-sub" placeholder="점"></div>
+                        <div class="form-group"><label>카테고리</label><input type="text" id="add-category"></div>
+                        <div class="form-group" style="flex: 1.5;"><label>주소</label><input type="text" id="add-address"></div>
+                        <div class="form-group" style="flex: 0.6;"><label>위도</label><input type="text" id="add-lat"></div>
+                        <div class="form-group" style="flex: 0.6;"><label>경도</label><input type="text" id="add-lng"></div>
+                        <div class="form-group"><label>방문시간</label><input type="datetime-local" id="add-time"></div>
+                        <div class="form-group" style="flex: 0.5;"><label>오프셋(분)</label><input type="number" id="add-offset" value="540"></div>
+                        <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
+                        <button class="btn-primary" onclick="submitAdd()">등록</button>
+                    </div>
+                </div>
+
+                <!-- List Section -->
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3 style="margin:0;"><i class="fa-solid fa-history"></i> 체크인 히스토리</h3>
+                        <div class="search-row">
+                            <input type="text" id="list-search" placeholder="검색 (장소, 주소)...">
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:110px;">시간(L)</th>
+                                    <th style="width:140px;">장소</th>
+                                    <th style="width:80px;">카테고리</th>
+                                    <th>주소</th>
+                                    <th style="width:60px;">위도</th>
+                                    <th style="width:60px;">경도</th>
+                                    <th style="width:40px;">Off</th>
+                                    <th>내용</th>
+                                    <th style="width:90px;">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manage-list-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <button class="btn-nav" id="prev-page" onclick="changePage(-1)"><i class="fa-solid fa-chevron-left"></i> 이전</button>
+                        <span id="page-info" style="font-size:0.85em;">페이지 1</span>
+                        <button class="btn-nav" id="next-page" onclick="changePage(1)">다음 <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="card" style="position: sticky; top: 20px;">
+                    <h3><i class="fa-solid fa-map-location-dot"></i> 위치 선택 / 검색</h3>
+                    <div style="display:flex; gap:5px; margin-bottom:10px;">
+                        <input type="text" id="map-search-input" placeholder="장소명 또는 주소 검색..." style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
+                        <button class="btn-primary" onclick="searchOnMap()" style="padding:8px 12px;"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    </div>
+                    <div id="mini-map"></div>
+                    <p style="font-size:0.8em; color:var(--text-mute); margin-top:10px;">지도 클릭 시 위도/경도가 자동 입력됩니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        const limit = 20;
+        let totalRecords = 0;
+        let currentItems = [];
+        let map, marker;
+
+        function initMap() {
+            map = L.map('mini-map').setView([37.5665, 126.9780], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
+            
+            map.on('click', (e) => {
+                const lat = e.latlng.lat.toFixed(6);
+                const lng = e.latlng.lng.toFixed(6);
+                setCoords(lat, lng);
+            });
+        }
+
+        async function searchOnMap() {
+            const q = document.getElementById('map-search-input').value;
+            if (!q) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const item = data[0];
+                const lat = parseFloat(item.lat).toFixed(6);
+                const lng = parseFloat(item.lon).toFixed(6);
+                map.setView([lat, lng], 16);
+                setCoords(lat, lng);
+                const addrField = document.querySelector('.row-edit') ? document.getElementById(`edit-address-${document.querySelector('.row-edit').id.replace('row-', '')}`) : document.getElementById('add-address');
+                if (!addrField.value) addrField.value = item.display_name;
+            } else {
+                alert('위치를 찾을 수 없습니다.');
+            }
+        }
+
+        document.getElementById('map-search-input').onkeypress = (e) => {
+            if (e.key === 'Enter') searchOnMap();
+        };
+
+        async function setCoords(lat, lng) {
+            const editRow = document.querySelector('.row-edit');
+            const isEdit = !!editRow;
+            
+            if (isEdit) {
+                const fsqId = editRow.id.replace('row-', '');
+                document.getElementById(`edit-lat-${fsqId}`).value = lat;
+                document.getElementById(`edit-lng-${fsqId}`).value = lng;
+            } else {
+                document.getElementById('add-lat').value = lat;
+                document.getElementById('add-lng').value = lng;
+            }
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                const data = await res.json();
+                if (data && data.address) {
+                    const country = data.address.country || '';
+                    const countryCode = (data.address.country_code || '').toUpperCase();
+                    
+                    if (!isEdit) {
+                        document.getElementById('add-country').value = country;
+                        document.getElementById('add-countrycode').value = countryCode;
+                        if (!document.getElementById('add-address').value) {
+                            document.getElementById('add-address').value = data.display_name;
+                        }
+                        if (countryCode === 'KR') document.getElementById('add-offset').value = 540;
+                    }
+                }
+            } catch(e) { console.error("Geocoding Error", e); }
+        }
+
+        async function fetchList() {
+            const q = document.getElementById('list-search').value;
+            const res = await fetch(`/api/manage/list?page=${currentPage}&limit=${limit}&q=${encodeURIComponent(q)}`);
+            const result = await res.json();
+            totalRecords = result.total;
+            currentItems = result.data;
+            renderList(currentItems);
+            updatePagination();
+        }
+
+        function renderList(data) {
+            const body = document.getElementById('manage-list-body');
+            body.innerHTML = '';
+            data.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.id = `row-${d.FSQ_ID}`;
+                tr.innerHTML = `
+                    <td>${moment(d.TIME_LOCAL).format('YY-MM-DD HH:mm')}</td>
+                    <td><b>${d.VENUE}</b></td>
+                    <td>${d.CATEGORY || '-'}</td>
+                    <td><span style="font-size:0.85em">${d.ADDRESS || '-'}</span></td>
+                    <td>${parseFloat(d.LAT).toFixed(4)}</td>
+                    <td>${parseFloat(d.LNG).toFixed(4)}</td>
+                    <td>${d.FSQ_TIMEZONEOFFSET}</td>
+                    <td><span style="font-size:0.85em">${d.SHOUT || ''}</span></td>
+                    <td>
+                        <button class="btn-sm btn-edit" onclick="startEdit('${d.FSQ_ID}')">수정</button>
+                        <button class="btn-sm btn-delete" onclick="deleteCheckin('${d.FSQ_ID}', '${d.GCal_EventID || ''}')">삭제</button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        function startEdit(fsqId) {
+            const row = document.getElementById(`row-${fsqId}`);
+            const item = currentItems.find(x => x.FSQ_ID === fsqId);
+            map.setView([item.LAT, item.LNG], 16);
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([item.LAT, item.LNG]).addTo(map);
+
+            row.classList.add('row-edit');
+            row.innerHTML = `
+                <td><input type="datetime-local" id="edit-time-${fsqId}" value="${moment(item.TIME_LOCAL).format('YYYY-MM-DDTHH:mm')}"></td>
+                <td><input type="text" id="edit-venue-${fsqId}" value="${item.VENUE_ONLY}"><br><input type="text" id="edit-venue-sub-${fsqId}" value="${item.VENUE_SUB || ''}" placeholder="지점명"></td>
+                <td><input type="text" id="edit-category-${fsqId}" value="${item.CATEGORY || ''}"></td>
+                <td><input type="text" id="edit-address-${fsqId}" value="${item.ADDRESS || ''}"></td>
+                <td><input type="text" id="edit-lat-${fsqId}" value="${item.LAT}"></td>
+                <td><input type="text" id="edit-lng-${fsqId}" value="${item.LNG}"></td>
+                <td><input type="number" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}"></td>
+                <td><input type="text" id="edit-shout-${fsqId}" value="${item.SHOUT || ''}"></td>
+                <td>
+                    <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')">저장</button>
+                    <button class="btn-sm btn-cancel" onclick="fetchList()">취소</button>
+                </td>
+            `;
+        }
+
+        async function submitEdit(fsqId, gcalId) {
+            const item = currentItems.find(x => x.FSQ_ID === fsqId);
+            const data = {
+                venue_only: document.getElementById(`edit-venue-${fsqId}`).value,
+                venue_sub: document.getElementById(`edit-venue-sub-${fsqId}`).value,
+                category: document.getElementById(`edit-category-${fsqId}`).value,
+                address: document.getElementById(`edit-address-${fsqId}`).value,
+                lat: document.getElementById(`edit-lat-${fsqId}`).value,
+                lng: document.getElementById(`edit-lng-${fsqId}`).value,
+                shout: document.getElementById(`edit-shout-${fsqId}`).value,
+                time_local: document.getElementById(`edit-time-${fsqId}`).value.replace('T', ' '),
+                timezone_offset: document.getElementById(`edit-offset-${fsqId}`).value,
+                gcal_eventid: gcalId,
+                fsq_unixtime: item.FSQ_UNIXTIME
+            };
+            const res = await fetch(`/api/manage/update/${fsqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const result = await res.json();
+            if (result.success) { fetchList(); } else { alert('에러: ' + result.error); }
+        }
+
+        function updatePagination() {
+            const maxPage = Math.ceil(totalRecords / limit) || 1;
+            document.getElementById('page-info').innerText = `페이지 ${currentPage} / ${maxPage} (총 ${totalRecords}건)`;
+            document.getElementById('prev-page').disabled = (currentPage === 1);
+            document.getElementById('next-page').disabled = (currentPage >= maxPage);
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            fetchList();
+        }
+
+        document.getElementById('list-search').oninput = () => {
+            currentPage = 1;
+            fetchList();
+        };
+
+        const venueInput = document.getElementById('add-venue');
+        const resultsBox = document.getElementById('venue-results');
+        venueInput.oninput = async (e) => {
+            const q = e.target.value;
+            if (q.length < 2) { resultsBox.style.display = 'none'; return; }
+            const res = await fetch(`/api/manage/venues?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (data.length > 0) {
+                resultsBox.innerHTML = '';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `<div><b>${item.DISPLAY_NAME}</b></div><div class="addr">${item.ADDRESS || ''}</div>`;
+                    div.onclick = () => {
+                        venueInput.value = item.DISPLAY_NAME;
+                        document.getElementById('add-venue-only').value = item.VENUE;
+                        document.getElementById('add-venue-sub').value = item.VENUE_SUB || '';
+                        document.getElementById('add-category').value = item.CATEGORY || '';
+                        document.getElementById('add-address').value = item.ADDRESS || '';
+                        document.getElementById('add-lat').value = item.LAT || '';
+                        document.getElementById('add-lng').value = item.LNG || '';
+                        document.getElementById('add-offset').value = item.FSQ_TIMEZONEOFFSET || 540;
+                        document.getElementById('add-venue-id').value = item.FSQ_VENUEID || '';
+                        document.getElementById('add-country').value = item.COUNTRY || '';
+                        document.getElementById('add-countrycode').value = item.COUNTRYCODE || '';
+                        resultsBox.style.display = 'none';
+                        map.setView([item.LAT, item.LNG], 16);
+                        if (marker) map.removeLayer(marker);
+                        marker = L.marker([item.LAT, item.LNG]).addTo(map);
+                    };
+                    resultsBox.appendChild(div);
+                });
+                resultsBox.style.display = 'block';
+            } else { resultsBox.style.display = 'none'; }
+        };
+
+        async function submitAdd() {
+            const timeLocal = document.getElementById('add-time').value.replace('T', ' ');
+            if (!venueInput.value || !timeLocal) { alert('장소명과 방문시간은 필수입니다.'); return; }
+            let venueOnly = document.getElementById('add-venue-only').value;
+            if (!venueOnly) venueOnly = venueInput.value;
+            const data = {
+                venue_only: venueOnly,
+                venue_sub: document.getElementById('add-venue-sub').value,
+                category: document.getElementById('add-category').value,
+                address: document.getElementById('add-address').value,
+                lat: document.getElementById('add-lat').value,
+                lng: document.getElementById('add-lng').value,
+                shout: document.getElementById('add-shout').value,
+                time_local: timeLocal,
+                timezone_offset: document.getElementById('add-offset').value,
+                fsq_venueid: document.getElementById('add-venue-id').value,
+                country: document.getElementById('add-country').value,
+                countrycode: document.getElementById('add-countrycode').value
+            };
+            const res = await fetch('/api/manage/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const result = await res.json();
+            if (result.success) { alert('추가되었습니다.'); location.reload(); } else { alert('에러: ' + result.error); }
+        }
+
+        async function deleteCheckin(fsqId, gcalId) {
+            if (!confirm('정말 삭제하시겠습니까? Swarm 및 구글 캘린더에서도 삭제됩니다.')) return;
+            const res = await fetch(`/api/manage/delete/${fsqId}?gcal_id=${gcalId}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) { fetchList(); } else { alert('에러: ' + result.error); }
+        }
+
+        window.onload = () => { initMap(); fetchList(); };
+    </script>
+</body>
+</html>

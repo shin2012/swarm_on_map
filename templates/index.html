@@ -149,6 +149,23 @@
             margin-top: 15px; padding: 0 11px; /* Matches scrubber-wrapper padding */
         }
 
+        /* Management Styles */
+        .autocomplete-results { position: absolute; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 100%; z-index: 100; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); top: 100%; }
+        .result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid var(--border); }
+        .result-item:hover { background: var(--bg-body); }
+        .result-item .addr { font-size: 0.8em; color: var(--text-mute); display: block; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; position: relative; }
+        .form-group label { font-size: 0.9em; font-weight: 600; color: var(--text-mute); }
+        .form-group input { padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-body); color: var(--text); outline: none; }
+        .manage-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .manage-table th, .manage-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+        .manage-table th { color: var(--text-mute); font-weight: 600; }
+        .btn-primary { background: var(--secondary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-secondary { background: var(--border); color: var(--text); border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-danger { background: #ff3b30; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+        .btn-edit { background: #0071e3; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; margin-right: 5px; }
+
         /* Markers & Icons centering fix */
         .marker-pin {
             width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
@@ -168,6 +185,25 @@
         .pop-title { font-weight: 700; font-size: 1.2em; margin-bottom: 6px; color: var(--text); }
         .pop-info { color: var(--text-mute); font-size: 0.9em; margin-bottom: 8px; }
         .pop-img { width: 100%; border-radius: 10px; margin-top: 10px; object-fit: cover; max-height: 200px; }
+
+        /* Modals */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 2000; overflow-y: auto;
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: var(--bg); margin: 50px auto; padding: 40px; border-radius: 24px;
+            border: 1px solid var(--border); box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            position: relative; width: 90%;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
+        .icon-btn {
+            background: var(--sidebar-bg); border: 1px solid var(--border); color: var(--text);
+            width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .icon-btn:hover { background: var(--border); }
 
         /* Dashboard */
         #dash-modal {
@@ -236,7 +272,7 @@
             .sidebar-head { padding-top: 0; }
             
             .fab-group { display: flex; }
-            #navbar .btn#open-report, #navbar .btn#my-loc { display: none; }
+            #navbar .btn#open-report, #navbar .btn#open-manage, #navbar .btn#my-loc { display: none; }
 
             .dash-grid { grid-template-columns: 1fr; }
             #time-capsule { 
@@ -266,16 +302,22 @@
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="search-input" placeholder="장소 또는 카테고리...">
             </div>
-            <select class="select-ui" id="map-theme-select">
-                <option value="auto">자동 테마</option>
-                <option value="light">라이트</option>
-                <option value="dark">다크</option>
-                <option value="voyager">보이저</option>
-                <option value="satellite">위성</option>
-            </select>
-            <button class="btn" id="heat-toggle"><i class="fa-solid fa-fire-flame-curved"></i> 히트맵</button>
+            <button class="btn primary" id="open-report" title="데이터 분석 리포트"><i class="fa-solid fa-chart-pie"></i> 리포트</button>
+            <a href="/manage" class="btn" title="체크인 관리" style="text-decoration:none;"><i class="fa-solid fa-list-check"></i> 관리</a>
+            <div style="display:flex; align-items:center; gap:8px; background:var(--sidebar-bg); padding:4px 10px; border-radius:10px; border:1px solid var(--border);">
+                <select class="select-ui" id="map-theme-select" style="border:none; padding:4px;">
+                    <option value="auto">자동 테마</option>
+                    <option value="light">라이트</option>
+                    <option value="dark">다크</option>
+                    <option value="voyager">보이저</option>
+                    <option value="satellite">위성</option>
+                </select>
+                <div style="width:1px; height:16px; background:var(--border);"></div>
+                <label style="display:flex; align-items:center; gap:5px; font-size:0.85em; font-weight:600; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="heat-toggle-chk" style="cursor:pointer;"> 히트맵
+                </label>
+            </div>
             <button class="btn" id="list-toggle"><i class="fa-solid fa-list-ul"></i> 리스트</button>
-            <button class="btn primary" id="open-report"><i class="fa-solid fa-chart-pie"></i> 리포트</button>
             <button class="btn" id="my-loc"><i class="fa-solid fa-location-crosshairs"></i></button>
         </div>
     </nav>
@@ -294,8 +336,9 @@
         </aside>
 
         <div class="fab-group">
-            <button class="btn fab primary" id="open-report-fab"><i class="fa-solid fa-chart-pie"></i></button>
-            <button class="btn fab" id="my-loc-fab"><i class="fa-solid fa-location-crosshairs"></i></button>
+            <button class="fab" id="open-report-fab"><i class="fa-solid fa-chart-pie"></i></button>
+            <a href="/manage" class="fab" id="open-manage-fab" style="display:flex; align-items:center; justify-content:center; text-decoration:none; color:inherit;"><i class="fa-solid fa-list-check"></i></a>
+            <button class="fab" id="my-loc-fab"><i class="fa-solid fa-location-crosshairs"></i></button>
         </div>
         
         <main id="map-container">
@@ -586,7 +629,7 @@
             map.removeLayer(currentTiles);
             currentTiles = L.tileLayer(tileSets[t], { attribution: '&copy; CARTO' }).addTo(map);
         };
-        document.getElementById('heat-toggle').onclick = (e) => { isHeatMode = !isHeatMode; e.target.classList.toggle('active', isHeatMode); applyAllFilters(); };
+        document.getElementById('heat-toggle-chk').onclick = (e) => { isHeatMode = e.target.checked; applyAllFilters(); };
         document.getElementById('search-input').oninput = applyAllFilters;
         document.getElementById('list-toggle').onclick = toggleSidebar;
         document.getElementById('close-sidebar').onclick = toggleSidebar;
@@ -594,6 +637,7 @@
         document.getElementById('open-report-fab').onclick = openDashboard;
         document.getElementById('close-report').onclick = () => { document.getElementById('dash-modal').style.display='none'; document.body.style.overflow='auto'; };
         document.querySelectorAll('.period-btn').forEach(b => b.onclick = (e) => { document.querySelectorAll('.period-btn').forEach(btn=>btn.classList.remove('active')); e.target.classList.add('active'); selectedPeriod = e.target.dataset.days; updateDashboard(); });
+
         document.getElementById('my-loc').onclick = () => map.locate({setView: true, maxZoom: 15});
         document.getElementById('my-loc-fab').onclick = () => map.locate({setView: true, maxZoom: 15});
         document.getElementById('mobile-search-toggle').onclick = () => {
