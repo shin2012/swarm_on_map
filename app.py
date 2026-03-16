@@ -268,6 +268,21 @@ def search_venues():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/manage/categories')
+def search_categories():
+    q = request.args.get('q', '')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT DISTINCT CATEGORY FROM FSQ_Swarm WHERE CATEGORY LIKE %s AND CATEGORY IS NOT NULL ORDER BY CATEGORY ASC LIMIT 15"
+        cursor.execute(query, (f"%{q}%",))
+        rows = [r['CATEGORY'] for r in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/manage/add', methods=['POST'])
 def add_checkin():
     data = request.json

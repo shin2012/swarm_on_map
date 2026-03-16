@@ -16,22 +16,35 @@
             :root { --bg: #1c1c1e; --bg-card: #2c2c2e; --border: #3a3a3c; --text: #f5f5f7; --text-mute: #8e8e93; }
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1600px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; box-sizing: border-box; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .header h1 { margin: 0; font-size: 1.8em; font-weight: 800; }
-        .card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card h3 { margin: 0 0 15px 0; font-size: 1.1em; color: var(--text-mute); }
+        .card { background: var(--bg-card); padding: 15px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; box-sizing: border-box; }
+        .card h3 { margin: 0 0 12px 0; font-size: 1.05em; color: var(--text-mute); }
         
         /* Layout Grid */
-        .manage-grid { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
+        .manage-grid { display: flex; flex-direction: column; gap: 15px; }
         
-        /* Horizontal Form Layout */
-        .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-        .form-group { flex: 1; display: flex; flex-direction: column; gap: 5px; position: relative; min-width: 120px; }
-        .form-group label { font-size: 0.8em; font-weight: 700; color: var(--text-mute); }
-        .form-group input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
-        .btn-primary { background: var(--secondary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        /* Horizontal Form Layout - Responsive Wrapping */
+        .form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; width: 100%; }
+        .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; position: relative; min-width: 150px; margin-bottom: 5px; }
+        .form-group.min-w { min-width: 80px; }
+        .form-group label { font-size: 0.75em; font-weight: 700; color: var(--text-mute); white-space: nowrap; }
+        .form-group input { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; font-size: 0.85em; }
+        .btn-primary { background: var(--secondary); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 0.85em; height: 34px; align-self: flex-end; margin-bottom: 5px; }
         
+        /* Hover Map Trigger */
+        .location-group { position: relative; }
+        .hover-map-btn {
+            position: absolute; right: 5px; top: 50%; transform: translateY(-10%);
+            background: var(--bg-card); border: 1px solid var(--border); color: var(--secondary);
+            width: 24px; height: 24px; border-radius: 6px; display: none;
+            align-items: center; justify-content: center; cursor: pointer; z-index: 10;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .location-group:hover .hover-map-btn { display: flex; }
+        .hover-map-btn:hover { background: var(--secondary); color: white; }
+
         /* Autocomplete */
         .autocomplete-results { position: absolute; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 100%; z-index: 1000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); top: 100%; left: 0; max-height: 300px; overflow-y: auto; }
         .result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid var(--border); }
@@ -39,107 +52,146 @@
         .result-item .addr { font-size: 0.75em; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Table Layout */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.85em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.82em; }
         th { color: var(--text-mute); font-weight: 600; background: var(--bg); }
-        .row-edit input { width: 100%; padding: 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.9em; }
+        .row-edit input { width: 100%; padding: 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85em; }
         
         /* Pagination */
-        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
-        .btn-nav { background: var(--bg-card); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--text); font-size: 0.9em; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; }
+        .btn-nav { background: var(--bg-card); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; cursor: pointer; color: var(--text); font-size: 0.85em; }
         .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .btn-sm { padding: 4px 8px; border-radius: 6px; font-size: 0.8em; cursor: pointer; border: none; margin-right: 4px; }
+        /* Icons for actions */
+        .btn-sm { padding: 5px 8px; border-radius: 6px; font-size: 0.9em; cursor: pointer; border: none; margin-right: 3px; display: inline-flex; align-items: center; justify-content: center; }
         .btn-edit { background: #0071e3; color: white; }
         .btn-delete { background: #ff3b30; color: white; }
         .btn-save { background: #34c759; color: white; }
         .btn-cancel { background: var(--text-mute); color: white; }
         
-        #mini-map { height: 350px; width: 100%; border-radius: 12px; border: 1px solid var(--border); }
+        /* Draggable Modal Style */
+        #map-modal {
+            display: none; position: fixed; top: 15%; left: 50%; width: 500px; 
+            transform: translateX(-50%);
+            background: var(--bg-card); z-index: 2000; 
+            border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); 
+            border: 1px solid var(--border);
+            flex-direction: column;
+            resize: both; overflow: auto;
+            min-width: 350px; min-height: 400px;
+        }
+        .modal-header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px 15px; border-bottom: 1px solid var(--border);
+            cursor: move; background: var(--bg); border-radius: 20px 20px 0 0;
+        }
+        .close-modal { cursor: pointer; font-size: 1.2em; color: var(--text-mute); }
+        .modal-body { padding: 15px; flex: 1; display: flex; flex-direction: column; }
+        #mini-map { height: 350px; width: 100%; border-radius: 12px; border: 1px solid var(--border); flex: 1; }
         
-        .search-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
-        .search-row input { padding: 6px 15px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 220px; font-size: 0.9em; }
+        .search-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+        .search-row input { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 200px; font-size: 0.85em; }
+
+        input[type="datetime-local"] { cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1><i class="fa-solid fa-list-check"></i> 체크인 관리</h1>
-            <a href="/" class="btn-primary" style="text-decoration:none;"><i class="fa-solid fa-map"></i> 지도로 돌아가기</a>
+            <a href="/" class="btn-primary" style="text-decoration:none; display: flex; align-items: center; gap: 5px; height: auto;"><i class="fa-solid fa-map"></i> 지도로 돌아가기</a>
         </div>
 
         <div class="manage-grid">
-            <div class="left-panel">
-                <!-- Add Section -->
-                <div class="card">
-                    <h3><i class="fa-solid fa-plus-circle"></i> 새 체크인 추가</h3>
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 1.5;">
-                            <label>장소명</label>
-                            <input type="text" id="add-venue" placeholder="검색/입력" autocomplete="off">
-                            <input type="hidden" id="add-venue-only">
-                            <input type="hidden" id="add-venue-id">
-                            <input type="hidden" id="add-country">
-                            <input type="hidden" id="add-countrycode">
-                            <div id="venue-results" class="autocomplete-results"></div>
-                        </div>
-                        <div class="form-group" style="flex: 0.8;"><label>지점명</label><input type="text" id="add-venue-sub" placeholder="점"></div>
-                        <div class="form-group"><label>카테고리</label><input type="text" id="add-category"></div>
-                        <div class="form-group" style="flex: 1.5;"><label>주소</label><input type="text" id="add-address"></div>
-                        <div class="form-group" style="flex: 0.6;"><label>위도</label><input type="text" id="add-lat"></div>
-                        <div class="form-group" style="flex: 0.6;"><label>경도</label><input type="text" id="add-lng"></div>
-                        <div class="form-group"><label>방문시간</label><input type="datetime-local" id="add-time"></div>
-                        <div class="form-group" style="flex: 0.5;"><label>오프셋(분)</label><input type="number" id="add-offset" value="540"></div>
-                        <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
-                        <button class="btn-primary" onclick="submitAdd()">등록</button>
+            <!-- Add Section -->
+            <div class="card">
+                <h3><i class="fa-solid fa-plus-circle"></i> 새 체크인 추가</h3>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1.5;">
+                        <label>장소명</label>
+                        <input type="text" id="add-venue" placeholder="검색/입력" autocomplete="off">
+                        <input type="hidden" id="add-venue-only">
+                        <input type="hidden" id="add-venue-id">
+                        <input type="hidden" id="add-country">
+                        <input type="hidden" id="add-countrycode">
+                        <div id="venue-results" class="autocomplete-results"></div>
                     </div>
-                </div>
-
-                <!-- List Section -->
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3 style="margin:0;"><i class="fa-solid fa-history"></i> 체크인 히스토리</h3>
-                        <div class="search-row">
-                            <input type="text" id="list-search" placeholder="검색 (장소, 주소)...">
-                        </div>
+                    <div class="form-group min-w" style="flex: 0.6;"><label>지점</label><input type="text" id="add-venue-sub" placeholder="점"></div>
+                    <div class="form-group min-w" style="flex: 0.8;">
+                        <label>카테고리</label>
+                        <input type="text" id="add-category" autocomplete="off">
+                        <div id="category-results" class="autocomplete-results"></div>
                     </div>
-                    <div style="overflow-x: auto;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width:110px;">시간(L)</th>
-                                    <th style="width:140px;">장소</th>
-                                    <th style="width:80px;">카테고리</th>
-                                    <th>주소</th>
-                                    <th style="width:60px;">위도</th>
-                                    <th style="width:60px;">경도</th>
-                                    <th style="width:40px;">Off</th>
-                                    <th>내용</th>
-                                    <th style="width:90px;">관리</th>
-                                </tr>
-                            </thead>
-                            <tbody id="manage-list-body"></tbody>
-                        </table>
+                    <div class="form-group location-group" style="flex: 2;">
+                        <label>주소</label>
+                        <input type="text" id="add-address" placeholder="주소">
+                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
                     </div>
-                    <div class="pagination">
-                        <button class="btn-nav" id="prev-page" onclick="changePage(-1)"><i class="fa-solid fa-chevron-left"></i> 이전</button>
-                        <span id="page-info" style="font-size:0.85em;">페이지 1</span>
-                        <button class="btn-nav" id="next-page" onclick="changePage(1)">다음 <i class="fa-solid fa-chevron-right"></i></button>
+                    <div class="form-group location-group min-w" style="flex: 0.7;">
+                        <label>위도</label>
+                        <input type="text" id="add-lat" placeholder="Latitude">
+                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
                     </div>
+                    <div class="form-group location-group min-w" style="flex: 0.7;">
+                        <label>경도</label>
+                        <input type="text" id="add-lng" placeholder="Longitude">
+                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
+                    </div>
+                    <div class="form-group" style="flex: 1.1; min-width: 160px;"><label>방문시간</label><input type="datetime-local" id="add-time"></div>
+                    <div class="form-group min-w" style="flex: 0.4;"><label>Off</label><input type="number" id="add-offset" value="540"></div>
+                    <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
+                    <button class="btn-primary" onclick="submitAdd()">등록</button>
                 </div>
             </div>
 
-            <div class="right-panel">
-                <div class="card" style="position: sticky; top: 20px;">
-                    <h3><i class="fa-solid fa-map-location-dot"></i> 위치 선택 / 검색</h3>
-                    <div style="display:flex; gap:5px; margin-bottom:10px;">
-                        <input type="text" id="map-search-input" placeholder="장소명 또는 주소 검색..." style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
-                        <button class="btn-primary" onclick="searchOnMap()" style="padding:8px 12px;"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <!-- List Section -->
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <h3 style="margin:0;"><i class="fa-solid fa-history"></i> 체크인 히스토리</h3>
+                    <div class="search-row">
+                        <input type="text" id="list-search" placeholder="검색 (장소, 주소)...">
                     </div>
-                    <div id="mini-map"></div>
-                    <p style="font-size:0.8em; color:var(--text-mute); margin-top:10px;">지도 클릭 시 위도/경도가 자동 입력됩니다.</p>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:110px;">시간(L)</th>
+                                <th style="width:140px;">장소</th>
+                                <th style="width:80px;">카테고리</th>
+                                <th>주소</th>
+                                <th style="width:70px;">위도</th>
+                                <th style="width:70px;">경도</th>
+                                <th style="width:40px;">Off</th>
+                                <th>내용</th>
+                                <th style="width:70px;">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manage-list-body"></tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button class="btn-nav" id="prev-page" onclick="changePage(-1)"><i class="fa-solid fa-chevron-left"></i> 이전</button>
+                    <span id="page-info" style="font-size:0.85em;">페이지 1</span>
+                    <button class="btn-nav" id="next-page" onclick="changePage(1)">다음 <i class="fa-solid fa-chevron-right"></i></button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Draggable Map Modal -->
+    <div id="map-modal">
+        <div class="modal-header" id="map-modal-header">
+            <h3 style="margin:0; font-size: 0.95em;"><i class="fa-solid fa-map-location-dot"></i> 위치 선택</h3>
+            <i class="fa-solid fa-xmark close-modal" onclick="closeMapModal()"></i>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <input type="text" id="map-search-input" placeholder="장소명 또는 주소 검색..." style="flex:1; padding:8px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size: 0.85em; outline:none;">
+                <button class="btn-primary" onclick="searchOnMap()" style="padding:0 15px; height:36px; margin-bottom: 0;"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+            <div id="mini-map"></div>
+            <p style="font-size:0.8em; color:var(--text-mute); margin-top:8px; margin-bottom: 0;">지도 클릭 시 주소와 좌표가 자동 입력됩니다.</p>
         </div>
     </div>
 
@@ -159,21 +211,128 @@
                 const lng = e.latlng.lng.toFixed(6);
                 setCoords(lat, lng);
             });
+            initDraggable(document.getElementById("map-modal"));
+        }
+
+        function openMapModal() {
+            const modal = document.getElementById('map-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => map.invalidateSize(), 100);
+            
+            const editRow = document.querySelector('.row-edit');
+            let lat, lng;
+            if (editRow) {
+                const fsqId = editRow.id.replace('row-', '');
+                lat = document.getElementById(`edit-lat-${fsqId}`).value;
+                lng = document.getElementById(`edit-lng-${fsqId}`).value;
+            } else {
+                lat = document.getElementById('add-lat').value;
+                lng = document.getElementById('add-lng').value;
+            }
+            if (lat && lng) {
+                const pos = [parseFloat(lat), parseFloat(lng)];
+                map.setView(pos, 16);
+                if (marker) map.removeLayer(marker);
+                marker = L.marker(pos).addTo(map);
+            }
+        }
+
+        function closeMapModal() {
+            document.getElementById('map-modal').style.display = 'none';
+        }
+
+        function initDraggable(el) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            const header = document.getElementById(el.id + "-header");
+            if (header) {
+                header.onmousedown = dragMouseDown;
+            } else {
+                el.onmousedown = dragMouseDown;
+            }
+
+            function dragMouseDown(e) {
+                e = e || window.event;
+                if (e.target.classList.contains('close-modal')) return;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                el.style.top = (el.offsetTop - pos2) + "px";
+                el.style.left = (el.offsetLeft - pos1) + "px";
+                el.style.transform = "none";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        function formatAddress(addr, fallback) {
+            if (!addr) return fallback || '';
+            const postcode = addr.postcode || '';
+            const country = addr.country || '';
+            const city = addr.city || addr.town || addr.village || addr.county || '';
+            
+            const restParts = [];
+            const parts = ['road', 'suburb', 'neighbourhood', 'quarter', 'city_district'];
+            parts.forEach(p => { if (addr[p]) restParts.push(addr[p]); });
+            if (addr.house_number && restParts.length > 0) restParts[0] = restParts[0] + ' ' + addr.house_number;
+            else if (addr.house_number) restParts.push(addr.house_number);
+
+            const rest = restParts.join(' ');
+            return [postcode, country, city, rest].filter(x => x).join(' ').trim();
+        }
+
+        function applyAddress(lat, lng, formattedAddr, rawAddr) {
+            const editRow = document.querySelector('.row-edit');
+            const isEdit = !!editRow;
+            
+            if (isEdit) {
+                const fsqId = editRow.id.replace('row-', '');
+                document.getElementById(`edit-lat-${fsqId}`).value = lat;
+                document.getElementById(`edit-lng-${fsqId}`).value = lng;
+                document.getElementById(`edit-address-${fsqId}`).value = formattedAddr;
+            } else {
+                document.getElementById('add-lat').value = lat;
+                document.getElementById('add-lng').value = lng;
+                document.getElementById('add-address').value = formattedAddr;
+                
+                if (rawAddr) {
+                    const country = rawAddr.country || '';
+                    const countryCode = (rawAddr.country_code || '').toUpperCase();
+                    document.getElementById('add-country').value = country;
+                    document.getElementById('add-countrycode').value = countryCode;
+                    if (countryCode === 'KR') document.getElementById('add-offset').value = 540;
+                }
+            }
+
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
         }
 
         async function searchOnMap() {
             const q = document.getElementById('map-search-input').value;
             if (!q) return;
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1`);
             const data = await res.json();
             if (data && data.length > 0) {
                 const item = data[0];
                 const lat = parseFloat(item.lat).toFixed(6);
                 const lng = parseFloat(item.lon).toFixed(6);
                 map.setView([lat, lng], 16);
-                setCoords(lat, lng);
-                const addrField = document.querySelector('.row-edit') ? document.getElementById(`edit-address-${document.querySelector('.row-edit').id.replace('row-', '')}`) : document.getElementById('add-address');
-                if (!addrField.value) addrField.value = item.display_name;
+                const formattedAddr = formatAddress(item.address, item.display_name);
+                applyAddress(lat, lng, formattedAddr, item.address);
             } else {
                 alert('위치를 찾을 수 없습니다.');
             }
@@ -184,37 +343,15 @@
         };
 
         async function setCoords(lat, lng) {
-            const editRow = document.querySelector('.row-edit');
-            const isEdit = !!editRow;
-            
-            if (isEdit) {
-                const fsqId = editRow.id.replace('row-', '');
-                document.getElementById(`edit-lat-${fsqId}`).value = lat;
-                document.getElementById(`edit-lng-${fsqId}`).value = lng;
-            } else {
-                document.getElementById('add-lat').value = lat;
-                document.getElementById('add-lng').value = lng;
-            }
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([lat, lng]).addTo(map);
-
             try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
                 const data = await res.json();
-                if (data && data.address) {
-                    const country = data.address.country || '';
-                    const countryCode = (data.address.country_code || '').toUpperCase();
-                    
-                    if (!isEdit) {
-                        document.getElementById('add-country').value = country;
-                        document.getElementById('add-countrycode').value = countryCode;
-                        if (!document.getElementById('add-address').value) {
-                            document.getElementById('add-address').value = data.display_name;
-                        }
-                        if (countryCode === 'KR') document.getElementById('add-offset').value = 540;
-                    }
-                }
-            } catch(e) { console.error("Geocoding Error", e); }
+                const formattedAddr = formatAddress(data.address, data.display_name);
+                applyAddress(lat, lng, formattedAddr, data.address);
+            } catch(e) { 
+                console.error("Geocoding Error", e);
+                applyAddress(lat, lng, "", null);
+            }
         }
 
         async function fetchList() {
@@ -242,9 +379,9 @@
                     <td>${parseFloat(d.LNG).toFixed(4)}</td>
                     <td>${d.FSQ_TIMEZONEOFFSET}</td>
                     <td><span style="font-size:0.85em">${d.SHOUT || ''}</span></td>
-                    <td>
-                        <button class="btn-sm btn-edit" onclick="startEdit('${d.FSQ_ID}')">수정</button>
-                        <button class="btn-sm btn-delete" onclick="deleteCheckin('${d.FSQ_ID}', '${d.GCal_EventID || ''}')">삭제</button>
+                    <td style="white-space:nowrap;">
+                        <button class="btn-sm btn-edit" onclick="startEdit('${d.FSQ_ID}')" title="수정"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn-sm btn-delete" onclick="deleteCheckin('${d.FSQ_ID}', '${d.GCal_EventID || ''}')" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
                     </td>
                 `;
                 body.appendChild(tr);
@@ -254,23 +391,35 @@
         function startEdit(fsqId) {
             const row = document.getElementById(`row-${fsqId}`);
             const item = currentItems.find(x => x.FSQ_ID === fsqId);
-            map.setView([item.LAT, item.LNG], 16);
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([item.LAT, item.LNG]).addTo(map);
-
+            
             row.classList.add('row-edit');
             row.innerHTML = `
                 <td><input type="datetime-local" id="edit-time-${fsqId}" value="${moment(item.TIME_LOCAL).format('YYYY-MM-DDTHH:mm')}"></td>
                 <td><input type="text" id="edit-venue-${fsqId}" value="${item.VENUE_ONLY}"><br><input type="text" id="edit-venue-sub-${fsqId}" value="${item.VENUE_SUB || ''}" placeholder="지점명"></td>
                 <td><input type="text" id="edit-category-${fsqId}" value="${item.CATEGORY || ''}"></td>
-                <td><input type="text" id="edit-address-${fsqId}" value="${item.ADDRESS || ''}"></td>
-                <td><input type="text" id="edit-lat-${fsqId}" value="${item.LAT}"></td>
-                <td><input type="text" id="edit-lng-${fsqId}" value="${item.LNG}"></td>
+                <td>
+                    <div class="location-group">
+                        <input type="text" id="edit-address-${fsqId}" value="${item.ADDRESS || ''}">
+                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
+                    </div>
+                </td>
+                <td>
+                    <div class="location-group">
+                        <input type="text" id="edit-lat-${fsqId}" value="${item.LAT}">
+                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
+                    </div>
+                </td>
+                <td>
+                    <div class="location-group">
+                        <input type="text" id="edit-lng-${fsqId}" value="${item.LNG}">
+                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
+                    </div>
+                </td>
                 <td><input type="number" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}"></td>
                 <td><input type="text" id="edit-shout-${fsqId}" value="${item.SHOUT || ''}"></td>
-                <td>
-                    <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')">저장</button>
-                    <button class="btn-sm btn-cancel" onclick="fetchList()">취소</button>
+                <td style="white-space:nowrap;">
+                    <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')" title="저장"><i class="fa-solid fa-check"></i></button>
+                    <button class="btn-sm btn-cancel" onclick="fetchList()" title="취소"><i class="fa-solid fa-xmark"></i></button>
                 </td>
             `;
         }
@@ -313,20 +462,24 @@
         };
 
         const venueInput = document.getElementById('add-venue');
-        const resultsBox = document.getElementById('venue-results');
+        const venueResults = document.getElementById('venue-results');
+        const categoryInput = document.getElementById('add-category');
+        const categoryResults = document.getElementById('category-results');
+
+        // Venue Autocomplete
         venueInput.oninput = async (e) => {
             const q = e.target.value;
-            if (q.length < 2) { resultsBox.style.display = 'none'; return; }
+            if (q.length < 2) { venueResults.style.display = 'none'; return; }
             const res = await fetch(`/api/manage/venues?q=${encodeURIComponent(q)}`);
             const data = await res.json();
             if (data.length > 0) {
-                resultsBox.innerHTML = '';
+                venueResults.innerHTML = '';
                 data.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'result-item';
                     div.innerHTML = `<div><b>${item.DISPLAY_NAME}</b></div><div class="addr">${item.ADDRESS || ''}</div>`;
                     div.onclick = () => {
-                        venueInput.value = item.DISPLAY_NAME;
+                        venueInput.value = item.VENUE; // Base venue name only
                         document.getElementById('add-venue-only').value = item.VENUE;
                         document.getElementById('add-venue-sub').value = item.VENUE_SUB || '';
                         document.getElementById('add-category').value = item.CATEGORY || '';
@@ -337,16 +490,40 @@
                         document.getElementById('add-venue-id').value = item.FSQ_VENUEID || '';
                         document.getElementById('add-country').value = item.COUNTRY || '';
                         document.getElementById('add-countrycode').value = item.COUNTRYCODE || '';
-                        resultsBox.style.display = 'none';
-                        map.setView([item.LAT, item.LNG], 16);
-                        if (marker) map.removeLayer(marker);
-                        marker = L.marker([item.LAT, item.LNG]).addTo(map);
+                        venueResults.style.display = 'none';
                     };
-                    resultsBox.appendChild(div);
+                    venueResults.appendChild(div);
                 });
-                resultsBox.style.display = 'block';
-            } else { resultsBox.style.display = 'none'; }
+                venueResults.style.display = 'block';
+            } else { venueResults.style.display = 'none'; }
         };
+
+        // Category Autocomplete
+        categoryInput.oninput = async (e) => {
+            const q = e.target.value;
+            const res = await fetch(`/api/manage/categories?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (data.length > 0) {
+                categoryResults.innerHTML = '';
+                data.forEach(cat => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `<div>${cat}</div>`;
+                    div.onclick = () => {
+                        categoryInput.value = cat;
+                        categoryResults.style.display = 'none';
+                    };
+                    categoryResults.appendChild(div);
+                });
+                categoryResults.style.display = 'block';
+            } else { categoryResults.style.display = 'none'; }
+        };
+
+        // Close results on outside click
+        document.addEventListener('click', (e) => {
+            if (!venueInput.contains(e.target) && !venueResults.contains(e.target)) venueResults.style.display = 'none';
+            if (!categoryInput.contains(e.target) && !categoryResults.contains(e.target)) categoryResults.style.display = 'none';
+        });
 
         async function submitAdd() {
             const timeLocal = document.getElementById('add-time').value.replace('T', ' ');
@@ -379,7 +556,11 @@
             if (result.success) { fetchList(); } else { alert('에러: ' + result.error); }
         }
 
-        window.onload = () => { initMap(); fetchList(); };
+        window.onload = () => { 
+            initMap(); 
+            fetchList(); 
+            document.getElementById('add-time').value = moment().format('YYYY-MM-DDTHH:mm');
+        };
     </script>
 </body>
 </html>
