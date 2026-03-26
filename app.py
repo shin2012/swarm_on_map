@@ -60,66 +60,99 @@ def setup_db_and_workers():
 
     # Start background geocoder
     def geocode_worker():
+        # Prevent running twice in Flask debug mode
+        if os.environ.get('WERKZEUG_RUN_MAIN') != 'true' and app.debug:
+            return
+
         skipped_ids = set()
+        backoff_until = 0
+        
         while True:
             try:
+                if time.time() < backoff_until:
+                    time.sleep(60)
+                    continue
+
                 conn = get_db_connection()
                 cursor = conn.cursor(dictionary=True)
-                # Filter out IDs we've already tried and failed to geocode in this session
+                
+                # Fetch a random record that hasn't been skipped in this session
                 query = "SELECT FSQ_ID, LAT, LNG FROM FSQ_Swarm WHERE CITY IS NULL AND LAT != '' AND LNG != '' "
+                params = []
                 if skipped_ids:
                     placeholders = ', '.join(['%s'] * len(skipped_ids))
                     query += f"AND FSQ_ID NOT IN ({placeholders}) "
+                    params = list(skipped_ids)
                 query += "ORDER BY RAND() LIMIT 1"
                 
-                cursor.execute(query, list(skipped_ids))
+                cursor.execute(query, params)
                 row = cursor.fetchone()
                 
                 if not row:
                     cursor.close()
                     conn.close()
-                    # If we ran out of new NULL records but still have skipped ones, clear them to try again later
-                    if skipped_ids: 
+                    if skipped_ids:
+                        log("All pending records skipped in this session. Resetting skip list in 10 minutes.")
                         skipped_ids.clear()
-                        time.sleep(60)
+                        time.sleep(600)
                     else:
-                        time.sleep(120) 
+                        time.sleep(300)
                     continue
                 
                 fsq_id = row['FSQ_ID']
-                lat = row['LAT']
-                lng = row['LNG']
+                lat, lng = row['LAT'], row['LNG']
                 
-                # Fetch from Nominatim
+                # OPTIMIZATION: Check if we already have a CITY for this exact LAT/LNG in our DB
+                cursor.execute("SELECT CITY FROM FSQ_Swarm WHERE LAT=%s AND LNG=%s AND CITY IS NOT NULL LIMIT 1", (lat, lng))
+                existing_row = cursor.fetchone()
+                
+                if existing_row and existing_row['CITY']:
+                    city_name = existing_row['CITY']
+                    cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
+                    conn.commit()
+                    log(f"Optimized: Copied CITY from existing record for {fsq_id} ({lat}, {lng}) -> {city_name}")
+                    cursor.close()
+                    conn.close()
+                    continue # Skip API call and move to next record immediately
+
                 url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json&accept-language=ko"
-                headers = {'User-Agent': 'fsq_map_insights/1.0'}
-                res = requests.get(url, headers=headers, timeout=10)
+                headers = {
+                    'User-Agent': 'FoursquareSwarmMapInsights/1.1 (contact: shin2012; personal project for checkin visualization)'
+                }
                 
-                city_name = None
+                res = requests.get(url, headers=headers, timeout=15)
+                
                 if res.status_code == 200:
                     data = res.json()
                     addr = data.get('address', {})
-                    # Try to find the most relevant city/province name
                     city_name = addr.get('city') or addr.get('town') or addr.get('province') or addr.get('county') or addr.get('village')
+                    
                     if city_name and city_name.endswith('도') and (addr.get('city') or addr.get('county')):
-                         city_name = addr.get('city') or addr.get('county') or city_name
+                        city_name = addr.get('city') or addr.get('county')
+                    
+                    if city_name:
+                        cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
+                        conn.commit()
+                        log(f"Successfully geocoded {fsq_id} -> {city_name}")
+                    else:
+                        log(f"No city info found for {fsq_id} ({lat}, {lng}). Skipping.")
+                        skipped_ids.add(fsq_id)
                 
-                if city_name:
-                    # Update DB with found city
-                    cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
-                    conn.commit()
-                    log(f"Geocoded {fsq_id}: {city_name}")
+                elif res.status_code in [403, 429]:
+                    log(f"Nominatim API Error {res.status_code}. Backing off for 1 hour.")
+                    backoff_until = time.time() + 3600
                 else:
-                    # If we couldn't find a city, leave it NULL as requested and skip for this session
+                    log(f"Nominatim API Error {res.status_code} for {fsq_id}. Skipping.")
                     skipped_ids.add(fsq_id)
-                    log(f"Geocoding returned no city for {fsq_id}, leaving as NULL and skipping.")
-                
+
                 cursor.close()
                 conn.close()
-                time.sleep(1.5) # Respect Nominatim rate limits
+                # Conservative delay + jitter
+                time.sleep(3.0 + (time.time() % 2))
+                
             except Exception as e:
-                log(f"Geocode worker error: {e}")
-                time.sleep(10)
+                log(f"Geocode worker exception: {e}")
+                time.sleep(30)
 
     t = threading.Thread(target=geocode_worker, daemon=True)
     t.start()
