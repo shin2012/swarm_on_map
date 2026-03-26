@@ -5,6 +5,9 @@ import time
 import requests
 import calendar
 import sys
+import threading
+import pytz
+from timezonefinder import TimezoneFinder
 from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request
 from dateutil import parser
@@ -29,6 +32,83 @@ DB_CONFIG = {
 
 def get_db_connection():
     return mysql.connector.connect(**DB_CONFIG)
+
+tf = TimezoneFinder()
+
+def setup_db_and_workers():
+    # Wait for DB to be ready
+    while True:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            # Ensure CITY column exists
+            try:
+                cursor.execute("ALTER TABLE FSQ_Swarm ADD COLUMN CITY VARCHAR(255) DEFAULT NULL")
+                conn.commit()
+                log("Added CITY column to FSQ_Swarm.")
+            except mysql.connector.Error as err:
+                if err.errno == 1060: # Duplicate column name
+                    pass
+                else:
+                    log(f"DB init error: {err}")
+            cursor.close()
+            conn.close()
+            break
+        except Exception as e:
+            log(f"Waiting for DB... {e}")
+            time.sleep(3)
+
+    # Start background geocoder
+    def geocode_worker():
+        while True:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT FSQ_ID, LAT, LNG FROM FSQ_Swarm WHERE CITY IS NULL AND LAT != '' AND LNG != '' LIMIT 1")
+                row = cursor.fetchone()
+                
+                if not row:
+                    cursor.close()
+                    conn.close()
+                    time.sleep(60) # Sleep longer if no work
+                    continue
+                
+                fsq_id = row['FSQ_ID']
+                lat = row['LAT']
+                lng = row['LNG']
+                
+                # Fetch from Nominatim
+                url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json&accept-language=ko"
+                headers = {'User-Agent': 'fsq_map_insights/1.0'}
+                res = requests.get(url, headers=headers, timeout=10)
+                
+                city_name = "Unknown"
+                if res.status_code == 200:
+                    data = res.json()
+                    addr = data.get('address', {})
+                    # Try to find the most relevant city/province name
+                    city_name = addr.get('city') or addr.get('town') or addr.get('province') or addr.get('county') or addr.get('village') or "Unknown"
+                    if city_name.endswith('도') and (addr.get('city') or addr.get('county')):
+                         # Prefer city/county over province if both exist but city wasn't first choice (edge cases)
+                         city_name = addr.get('city') or addr.get('county') or city_name
+                
+                # Update DB
+                cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                log(f"Geocoded {fsq_id}: {city_name}")
+                
+                time.sleep(1.5) # Respect Nominatim rate limits
+            except Exception as e:
+                log(f"Geocode worker error: {e}")
+                time.sleep(10)
+
+    t = threading.Thread(target=geocode_worker, daemon=True)
+    t.start()
+
+# Initialize DB and worker on startup
+threading.Thread(target=setup_db_and_workers, daemon=True).start()
 
 # --- Sync Helpers ---
 
@@ -203,6 +283,20 @@ def sync_to_gcal(action, data):
         log(f"GCal Sync Exception during {action}: {e}")
         return False
 
+def get_timezone_offset(lat, lng, time_local_str):
+    """Calculate minute offset for given coordinates and local time."""
+    try:
+        tz_str = tf.timezone_at(lat=float(lat), lng=float(lng))
+        if not tz_str:
+            return 540
+        tz = pytz.timezone(tz_str)
+        dt_naive = parser.parse(time_local_str)
+        dt_aware = tz.localize(dt_naive, is_dst=None)
+        return int(dt_aware.utcoffset().total_seconds() / 60)
+    except Exception as e:
+        log(f"Timezone calc error: {e}")
+        return 540
+
 def calculate_times(time_local_str, offset_minutes):
     """Calculate all time formats based on local time string and offset."""
     dt_naive = parser.parse(time_local_str)
@@ -235,7 +329,7 @@ def get_manage_list():
         cursor.execute(count_query, (f"%{q}%", f"%{q}%"))
         total = cursor.fetchone()['total']
         query = """
-            SELECT FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET,
+            SELECT FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET, CITY,
                 CASE WHEN VENUE_SUB LIKE '%%점' THEN CONCAT(VENUE, ' (', VENUE_SUB, ')') ELSE VENUE END AS VENUE,
                 VENUE as VENUE_ONLY, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, GCal_EventID
             FROM FSQ_Swarm WHERE VENUE LIKE %s OR ADDRESS LIKE %s ORDER BY FSQ_UNIXTIME DESC LIMIT %s OFFSET %s
@@ -287,7 +381,7 @@ def search_categories():
 def add_checkin():
     data = request.json
     try:
-        offset = int(data.get('timezone_offset', 540))
+        offset = get_timezone_offset(data['lat'], data['lng'], data['time_local'])
         unixtime, time_utc, time_kst, time_local = calculate_times(data['time_local'], offset)
         
         # Use the same unixtime for FSQ_ID to keep them consistent
@@ -316,7 +410,7 @@ def add_checkin():
 def update_checkin(fsq_id):
     data = request.json
     try:
-        offset = int(data.get('timezone_offset', 540))
+        offset = get_timezone_offset(data['lat'], data['lng'], data['time_local'])
         unixtime, time_utc, time_kst, time_local = calculate_times(data['time_local'], offset)
         sync_data = {**data, 'fsq_id': fsq_id, 'fsq_unixtime': unixtime, 'venue': data['venue_only']}
         sync_to_swarm('update', sync_data)
@@ -325,7 +419,7 @@ def update_checkin(fsq_id):
         cursor = conn.cursor()
         query = """
             UPDATE FSQ_Swarm SET VENUE=%s, VENUE_SUB=%s, CATEGORY=%s, LAT=%s, LNG=%s, ADDRESS=%s, 
-                TIME_LOCAL=%s, TIME_KST=%s, TIME_UTC=%s, FSQ_TIMEZONEOFFSET=%s, SHOUT=%s, FSQ_UNIXTIME=%s, MODIFIED=NOW()
+                TIME_LOCAL=%s, TIME_KST=%s, TIME_UTC=%s, FSQ_TIMEZONEOFFSET=%s, SHOUT=%s, FSQ_UNIXTIME=%s, MODIFIED=NOW(), CITY=NULL
             WHERE FSQ_ID=%s
         """
         cursor.execute(query, (data['venue_only'], data.get('venue_sub', ''), data['category'], data['lat'], data['lng'], data['address'], 
@@ -369,7 +463,7 @@ def get_data():
         cursor = conn.cursor(dictionary=True)
         query = """
             SELECT FSQ_UNIXTIME, CASE WHEN VENUE_SUB LIKE '%점' THEN CONCAT(VENUE, ' (', VENUE_SUB, ')') ELSE VENUE END AS VENUE,
-                CATEGORY, LAT, LNG, ADDRESS, TIME_KST, PHOTO, SHOUT, FSQ_ID, GCal_EventID
+                CATEGORY, LAT, LNG, ADDRESS, CITY, TIME_KST, PHOTO, SHOUT, FSQ_ID, GCal_EventID
             FROM FSQ_Swarm WHERE LAT != '' AND LNG != '' ORDER BY FSQ_UNIXTIME ASC
         """
         cursor.execute(query)

@@ -11,11 +11,13 @@
   - **모바일 대응**: 모바일 환경을 위한 슬라이딩 방문 리스트 토글 및 UI 최적화.
   - 마커 클릭 시 장소명, 카테고리, 시간, 사진, 코멘트(Shout) 팝업 표시.
   - 방문 통계 분석 대시보드 (Chart.js 기반).
+  - **도시 통계 자동화**: 위/경도 기반 Nominatim 역지오코딩을 통한 도시명(`CITY`) 추출 및 통계 활용.
   - **체크인 관리**: 수동 체크인 추가, 기존 데이터 수정 및 삭제 기능.
+  - **타임존 자동화**: 위/경도 좌표를 기반으로 타임존 오프셋 자동 계산.
   - **동기화**: 추가/수정/삭제 시 Swarm 서비스 및 구글 캘린더와 연동.
 
 ## 2. 기술 스택
-- **Backend**: Python 3.10, Flask
+- **Backend**: Python 3.10, Flask, `timezonefinder`, `pytz`
 - **Frontend**: HTML5, Vanilla JS, Leaflet.js, Leaflet.markercluster (CDN 사용)
 - **Database**: MariaDB (외부 컨테이너 `mariadb`와 `oci_bridge` 네트워크로 연결)
 - **Deployment**: Docker, Docker Compose
@@ -26,9 +28,12 @@
   2. 프론트엔드에서 `/api/data` 호출.
   3. 백엔드에서 MariaDB에 접속하여 `LAT`, `LNG`가 있는 유효한 체크인 데이터를 가져와 JSON으로 반환.
   4. Leaflet이 데이터를 받아 클러스터링 후 지도에 렌더링.
+- **백그라운드 지오코딩**: 
+  - 서버 실행 시 `CITY` 컬럼이 없는 데이터를 대상으로 Nominatim API(1.5초 간격)를 호출하여 도시 정보를 채워넣는 워커 스레드 구동.
 - **체크인 관리 로직**:
   - 장소명 및 카테고리 자동완성 지원 (기존 방문 데이터 기반).
   - 드래그 가능한 지도 팝업을 통한 위치(좌표/주소) 선택 기능.
+  - 위도, 경도, 타임 오프셋 입력 필드를 숨기고 지도 선택 시 자동 처리.
   - 주소 자동 포맷팅 (`[우편번호] [국가] [도시] [나머지주소]`).
   - 방문 시간 초기값 설정 및 세련된 UI 적용.
 - **네트워크 설정**: `docker-compose.yml`에서 `external: true`인 `oci_bridge` 네트워크를 사용하여 기존 MariaDB 컨테이너와 통신합니다.
@@ -58,6 +63,7 @@ CREATE TABLE `FSQ_Swarm` (
   `ADDRESS` varchar(255) DEFAULT NULL,
   `COUNTRY` varchar(255) DEFAULT NULL,
   `COUNTRYCODE` varchar(255) DEFAULT NULL,
+  `CITY` varchar(255) DEFAULT NULL,
   `TIME_UTC` varchar(32) NOT NULL,
   `TIME_KST` varchar(32) NOT NULL,
   `TIME_LOCAL` varchar(32) NOT NULL,

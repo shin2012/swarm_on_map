@@ -130,18 +130,10 @@
                         <input type="text" id="add-address" placeholder="주소">
                         <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
                     </div>
-                    <div class="form-group location-group min-w" style="flex: 0.7;">
-                        <label>위도</label>
-                        <input type="text" id="add-lat" placeholder="Latitude">
-                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
-                    <div class="form-group location-group min-w" style="flex: 0.7;">
-                        <label>경도</label>
-                        <input type="text" id="add-lng" placeholder="Longitude">
-                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
+                    <input type="hidden" id="add-lat">
+                    <input type="hidden" id="add-lng">
+                    <input type="hidden" id="add-offset" value="540">
                     <div class="form-group" style="flex: 1.1; min-width: 160px;"><label>방문시간</label><input type="text" id="add-time" placeholder="날짜와 시간 선택"></div>
-                    <div class="form-group min-w" style="flex: 0.4;"><label>Off</label><input type="number" id="add-offset" value="540"></div>
                     <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
                     <button class="btn-primary" onclick="submitAdd()">등록</button>
                 </div>
@@ -164,9 +156,6 @@
                                 <th style="width:140px;">장소</th>
                                 <th style="width:80px;">카테고리</th>
                                 <th>주소</th>
-                                <th style="width:70px;">위도</th>
-                                <th style="width:70px;">경도</th>
-                                <th style="width:40px;">Off</th>
                                 <th>내용</th>
                                 <th style="width:70px;">관리</th>
                             </tr>
@@ -377,9 +366,6 @@
                     <td><b>${d.VENUE}</b></td>
                     <td>${d.CATEGORY || '-'}</td>
                     <td><span style="font-size:0.85em">${d.ADDRESS || '-'}</span></td>
-                    <td>${parseFloat(d.LAT).toFixed(4)}</td>
-                    <td>${parseFloat(d.LNG).toFixed(4)}</td>
-                    <td>${d.FSQ_TIMEZONEOFFSET}</td>
                     <td><span style="font-size:0.85em">${d.SHOUT || ''}</span></td>
                     <td style="white-space:nowrap;">
                         <button class="btn-sm btn-edit" onclick="startEdit('${d.FSQ_ID}')" title="수정"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -409,19 +395,11 @@
                     </div>
                 </td>
                 <td>
-                    <div class="location-group">
-                        <input type="text" id="edit-lat-${fsqId}" value="${item.LAT}">
-                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
+                    <input type="text" id="edit-shout-${fsqId}" value="${item.SHOUT || ''}">
+                    <input type="hidden" id="edit-lat-${fsqId}" value="${item.LAT}">
+                    <input type="hidden" id="edit-lng-${fsqId}" value="${item.LNG}">
+                    <input type="hidden" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}">
                 </td>
-                <td>
-                    <div class="location-group">
-                        <input type="text" id="edit-lng-${fsqId}" value="${item.LNG}">
-                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
-                </td>
-                <td><input type="number" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}"></td>
-                <td><input type="text" id="edit-shout-${fsqId}" value="${item.SHOUT || ''}"></td>
                 <td style="white-space:nowrap;">
                     <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')" title="저장"><i class="fa-solid fa-check"></i></button>
                     <button class="btn-sm btn-cancel" onclick="fetchList()" title="취소"><i class="fa-solid fa-xmark"></i></button>
