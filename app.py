@@ -60,17 +60,30 @@ def setup_db_and_workers():
 
     # Start background geocoder
     def geocode_worker():
+        skipped_ids = set()
         while True:
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT FSQ_ID, LAT, LNG FROM FSQ_Swarm WHERE CITY IS NULL AND LAT != '' AND LNG != '' LIMIT 1")
+                # Filter out IDs we've already tried and failed to geocode in this session
+                query = "SELECT FSQ_ID, LAT, LNG FROM FSQ_Swarm WHERE CITY IS NULL AND LAT != '' AND LNG != '' "
+                if skipped_ids:
+                    placeholders = ', '.join(['%s'] * len(skipped_ids))
+                    query += f"AND FSQ_ID NOT IN ({placeholders}) "
+                query += "ORDER BY RAND() LIMIT 1"
+                
+                cursor.execute(query, list(skipped_ids))
                 row = cursor.fetchone()
                 
                 if not row:
                     cursor.close()
                     conn.close()
-                    time.sleep(60) # Sleep longer if no work
+                    # If we ran out of new NULL records but still have skipped ones, clear them to try again later
+                    if skipped_ids: 
+                        skipped_ids.clear()
+                        time.sleep(60)
+                    else:
+                        time.sleep(120) 
                     continue
                 
                 fsq_id = row['FSQ_ID']
@@ -82,23 +95,27 @@ def setup_db_and_workers():
                 headers = {'User-Agent': 'fsq_map_insights/1.0'}
                 res = requests.get(url, headers=headers, timeout=10)
                 
-                city_name = "Unknown"
+                city_name = None
                 if res.status_code == 200:
                     data = res.json()
                     addr = data.get('address', {})
                     # Try to find the most relevant city/province name
-                    city_name = addr.get('city') or addr.get('town') or addr.get('province') or addr.get('county') or addr.get('village') or "Unknown"
-                    if city_name.endswith('도') and (addr.get('city') or addr.get('county')):
-                         # Prefer city/county over province if both exist but city wasn't first choice (edge cases)
+                    city_name = addr.get('city') or addr.get('town') or addr.get('province') or addr.get('county') or addr.get('village')
+                    if city_name and city_name.endswith('도') and (addr.get('city') or addr.get('county')):
                          city_name = addr.get('city') or addr.get('county') or city_name
                 
-                # Update DB
-                cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
-                conn.commit()
+                if city_name:
+                    # Update DB with found city
+                    cursor.execute("UPDATE FSQ_Swarm SET CITY=%s WHERE FSQ_ID=%s", (city_name, fsq_id))
+                    conn.commit()
+                    log(f"Geocoded {fsq_id}: {city_name}")
+                else:
+                    # If we couldn't find a city, leave it NULL as requested and skip for this session
+                    skipped_ids.add(fsq_id)
+                    log(f"Geocoding returned no city for {fsq_id}, leaving as NULL and skipping.")
+                
                 cursor.close()
                 conn.close()
-                log(f"Geocoded {fsq_id}: {city_name}")
-                
                 time.sleep(1.5) # Respect Nominatim rate limits
             except Exception as e:
                 log(f"Geocode worker error: {e}")
