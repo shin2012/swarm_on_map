@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
     <style>
         :root {
             --bg: #f5f5f7; --bg-card: #ffffff; --border: #d2d2d7; --text: #1d1d1f; --text-mute: #86868b; --secondary: #0071e3;
@@ -137,7 +140,7 @@
                         <input type="text" id="add-lng" placeholder="Longitude">
                         <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
                     </div>
-                    <div class="form-group" style="flex: 1.1; min-width: 160px;"><label>방문시간</label><input type="datetime-local" id="add-time"></div>
+                    <div class="form-group" style="flex: 1.1; min-width: 160px;"><label>방문시간</label><input type="text" id="add-time" placeholder="날짜와 시간 선택"></div>
                     <div class="form-group min-w" style="flex: 0.4;"><label>Off</label><input type="number" id="add-offset" value="540"></div>
                     <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
                     <button class="btn-primary" onclick="submitAdd()">등록</button>
@@ -148,8 +151,9 @@
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <h3 style="margin:0;"><i class="fa-solid fa-history"></i> 체크인 히스토리</h3>
-                    <div class="search-row">
-                        <input type="text" id="list-search" placeholder="검색 (장소, 주소)...">
+                    <div class="search-row" style="position: relative; display: inline-flex; align-items: center;">
+                        <input type="text" id="list-search" placeholder="검색 (장소, 주소)..." style="padding-right: 25px;">
+                        <i class="fa-solid fa-circle-xmark" id="clear-search" style="position: absolute; right: 8px; cursor: pointer; color: var(--text-mute); display: none;" onclick="clearSearch()"></i>
                     </div>
                 </div>
                 <div style="overflow-x: auto;">
@@ -171,9 +175,6 @@
                     </table>
                 </div>
                 <div class="pagination">
-                    <button class="btn-nav" id="prev-page" onclick="changePage(-1)"><i class="fa-solid fa-chevron-left"></i> 이전</button>
-                    <span id="page-info" style="font-size:0.85em;">페이지 1</span>
-                    <button class="btn-nav" id="next-page" onclick="changePage(1)">다음 <i class="fa-solid fa-chevron-right"></i></button>
                 </div>
             </div>
         </div>
@@ -196,6 +197,7 @@
     </div>
 
     <script>
+        moment.locale('ko');
         let currentPage = 1;
         const limit = 20;
         let totalRecords = 0;
@@ -371,7 +373,7 @@
                 const tr = document.createElement('tr');
                 tr.id = `row-${d.FSQ_ID}`;
                 tr.innerHTML = `
-                    <td>${moment(d.TIME_LOCAL).format('YY-MM-DD HH:mm')}</td>
+                    <td>${moment(d.TIME_LOCAL).format('YY-MM-DD (dd) HH:mm')}</td>
                     <td><b>${d.VENUE}</b></td>
                     <td>${d.CATEGORY || '-'}</td>
                     <td><span style="font-size:0.85em">${d.ADDRESS || '-'}</span></td>
@@ -389,12 +391,15 @@
         }
 
         function startEdit(fsqId) {
+            if (document.querySelector('.row-edit')) {
+                renderList(currentItems);
+            }
             const row = document.getElementById(`row-${fsqId}`);
             const item = currentItems.find(x => x.FSQ_ID === fsqId);
             
             row.classList.add('row-edit');
             row.innerHTML = `
-                <td><input type="datetime-local" id="edit-time-${fsqId}" value="${moment(item.TIME_LOCAL).format('YYYY-MM-DDTHH:mm')}"></td>
+                <td><input type="text" id="edit-time-${fsqId}" value="${item.TIME_LOCAL}"></td>
                 <td><input type="text" id="edit-venue-${fsqId}" value="${item.VENUE_ONLY}"><br><input type="text" id="edit-venue-sub-${fsqId}" value="${item.VENUE_SUB || ''}" placeholder="지점명"></td>
                 <td><input type="text" id="edit-category-${fsqId}" value="${item.CATEGORY || ''}"></td>
                 <td>
@@ -422,10 +427,23 @@
                     <button class="btn-sm btn-cancel" onclick="fetchList()" title="취소"><i class="fa-solid fa-xmark"></i></button>
                 </td>
             `;
+            flatpickr(`#edit-time-${fsqId}`, {
+                enableTime: true,
+                dateFormat: "Y-m-d H:i",
+                altInput: true,
+                altFormat: "Y-m-d (D) H:i",
+                locale: "ko",
+                time_24hr: true,
+                defaultDate: item.TIME_LOCAL
+            });
         }
 
         async function submitEdit(fsqId, gcalId) {
             const item = currentItems.find(x => x.FSQ_ID === fsqId);
+            const timeVal = document.getElementById(`edit-time-${fsqId}`).value;
+            // The value is already in YYYY-MM-DD HH:mm format from Flatpickr's dateFormat
+            const parsedTime = timeVal + ":00"; 
+
             const data = {
                 venue_only: document.getElementById(`edit-venue-${fsqId}`).value,
                 venue_sub: document.getElementById(`edit-venue-sub-${fsqId}`).value,
@@ -434,7 +452,7 @@
                 lat: document.getElementById(`edit-lat-${fsqId}`).value,
                 lng: document.getElementById(`edit-lng-${fsqId}`).value,
                 shout: document.getElementById(`edit-shout-${fsqId}`).value,
-                time_local: document.getElementById(`edit-time-${fsqId}`).value.replace('T', ' '),
+                time_local: parsedTime,
                 timezone_offset: document.getElementById(`edit-offset-${fsqId}`).value,
                 gcal_eventid: gcalId,
                 fsq_unixtime: item.FSQ_UNIXTIME
@@ -446,20 +464,63 @@
 
         function updatePagination() {
             const maxPage = Math.ceil(totalRecords / limit) || 1;
-            document.getElementById('page-info').innerText = `페이지 ${currentPage} / ${maxPage} (총 ${totalRecords}건)`;
-            document.getElementById('prev-page').disabled = (currentPage === 1);
-            document.getElementById('next-page').disabled = (currentPage >= maxPage);
+            const pagination = document.querySelector('.pagination');
+            pagination.innerHTML = '';
+            
+            let startPage = Math.max(1, currentPage - 5);
+            let endPage = Math.min(maxPage, currentPage + 4);
+            
+            if (endPage - startPage < 9) {
+                if (startPage === 1) endPage = Math.min(maxPage, startPage + 9);
+                else if (endPage === maxPage) startPage = Math.max(1, endPage - 9);
+            }
+
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'btn-nav';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i> 이전';
+            prevBtn.onclick = () => goToPage(currentPage - 1);
+            pagination.appendChild(prevBtn);
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = 'btn-nav';
+                if (i === currentPage) {
+                    pageBtn.style.background = 'var(--secondary)';
+                    pageBtn.style.color = 'white';
+                }
+                pageBtn.innerText = i;
+                pageBtn.onclick = () => goToPage(i);
+                pagination.appendChild(pageBtn);
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'btn-nav';
+            nextBtn.disabled = currentPage >= maxPage;
+            nextBtn.innerHTML = '다음 <i class="fa-solid fa-chevron-right"></i>';
+            nextBtn.onclick = () => goToPage(currentPage + 1);
+            pagination.appendChild(nextBtn);
         }
 
-        function changePage(delta) {
-            currentPage += delta;
-            fetchList();
+        function goToPage(page) {
+            if (page >= 1 && page <= (Math.ceil(totalRecords / limit) || 1)) {
+                currentPage = page;
+                fetchList();
+            }
         }
 
-        document.getElementById('list-search').oninput = () => {
+        document.getElementById('list-search').oninput = (e) => {
+            document.getElementById('clear-search').style.display = e.target.value ? 'block' : 'none';
             currentPage = 1;
             fetchList();
         };
+
+        function clearSearch() {
+            document.getElementById('list-search').value = '';
+            document.getElementById('clear-search').style.display = 'none';
+            currentPage = 1;
+            fetchList();
+        }
 
         const venueInput = document.getElementById('add-venue');
         const venueResults = document.getElementById('venue-results');
@@ -559,7 +620,15 @@
         window.onload = () => { 
             initMap(); 
             fetchList(); 
-            document.getElementById('add-time').value = moment().format('YYYY-MM-DDTHH:mm');
+            flatpickr('#add-time', {
+                enableTime: true,
+                dateFormat: "Y-m-d H:i",
+                altInput: true,
+                altFormat: "Y-m-d (D) H:i",
+                locale: "ko",
+                time_24hr: true,
+                defaultDate: new Date()
+            });
         };
     </script>
 </body>
