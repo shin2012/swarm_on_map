@@ -491,6 +491,8 @@ moment.locale('ko');
 
 let allData = [];
 let map, markers, heatLayer;
+const CARTO_KEY = 'cb1_2mra_1_20f52391c4787f3b6ed18089';
+const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>';
 let markerObjects = [];
 let isHeatMode = false;
 let currentFilter = 'all';
@@ -547,9 +549,9 @@ function initMap() {
     map = L.map('map', { zoomControl: false }).setView([37.5665, 126.9780], 11);
     L.tileLayer(
         isDark
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        { attribution: '&copy; CARTO' }
+            ? `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+            : `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
+        { attribution: CARTO_ATTR }
     ).addTo(map);
 
     markers = L.markerClusterGroup({
@@ -1011,9 +1013,9 @@ function openMapPicker() {
         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         pickerMapInst = L.map('picker-map', { zoomControl: false }).setView([37.5665, 126.9780], 13);
         L.tileLayer(
-            isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                   : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            { attribution: '&copy; CARTO' }
+            isDark ? `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+                   : `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
+            { attribution: CARTO_ATTR }
         ).addTo(pickerMapInst);
 
         pickerMapInst.on('click', async e => {

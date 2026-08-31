@@ -400,10 +400,12 @@
         let isHeatMode = false;
         let selectedPeriod = '90';
 
+        const CARTO_KEY = 'cb1_2mra_1_20f52391c4787f3b6ed18089';
+        const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>';
         const tileSets = {
-            light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-            voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            light: `https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
+            dark: `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
+            voyager: `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
             satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
         };
 
@@ -430,7 +432,7 @@
             L.control.zoom({ position: 'topright' }).addTo(map);
             let theme = document.getElementById('map-theme-select').value;
             if (theme === 'auto') theme = getTheme();
-            currentTiles = L.tileLayer(tileSets[theme], { attribution: '&copy; CARTO' }).addTo(map);
+            currentTiles = L.tileLayer(tileSets[theme], { attribution: CARTO_ATTR }).addTo(map);
             markers = L.markerClusterGroup({ 
                 maxClusterRadius: 50,
                 showCoverageOnHover: false,
@@ -671,7 +673,7 @@
         document.getElementById('map-theme-select').onchange = (e) => {
             let t = e.target.value === 'auto' ? getTheme() : e.target.value;
             map.removeLayer(currentTiles);
-            currentTiles = L.tileLayer(tileSets[t], { attribution: '&copy; CARTO' }).addTo(map);
+            currentTiles = L.tileLayer(tileSets[t], { attribution: CARTO_ATTR }).addTo(map);
         };
         document.getElementById('heat-toggle-chk').onclick = (e) => { isHeatMode = e.target.checked; applyAllFilters(); };
         document.getElementById('search-input').oninput = applyAllFilters;
