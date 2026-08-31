@@ -319,6 +319,9 @@
             </div>
             <button class="btn" id="list-toggle"><i class="fa-solid fa-list-ul"></i> 리스트</button>
             <button class="btn" id="my-loc"><i class="fa-solid fa-location-crosshairs"></i></button>
+            <a href="javascript:void(0)" onclick="tinyauthLogout()" class="btn" title="로그아웃" style="opacity:0.7;">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </a>
         </div>
     </nav>
 
@@ -372,6 +375,9 @@
                 <button class="period-btn" data-days="all">전체</button>
             </div>
 
+            <!-- KPI Summary Strip -->
+            <div id="dash-kpi" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:30px;"></div>
+
             <div class="dash-grid">
                 <div class="card"><h3><i class="fa-solid fa-chart-line" style="color:#0071e3;"></i> 방문 추이</h3><div class="chart-box"><canvas id="chart-timeline"></canvas></div></div>
                 <div class="card"><h3><i class="fa-solid fa-clock" style="color:#34c759;"></i> 시간대 분포</h3><div class="chart-box"><canvas id="chart-hourly"></canvas></div></div>
@@ -379,6 +385,8 @@
                 <div class="card"><h3><i class="fa-solid fa-tags" style="color:#ff9500;"></i> 주요 카테고리</h3><div class="chart-box"><canvas id="chart-categories"></canvas></div></div>
                 <div class="card"><h3><i class="fa-solid fa-map-pin" style="color:#ffcc00;"></i> 방문 지역</h3><div class="chart-box"><canvas id="chart-regions"></canvas></div></div>
                 <div class="card"><h3><i class="fa-solid fa-crown" style="color:#ff2d55;"></i> 최다 방문 장소</h3><div class="chart-box"><canvas id="chart-venues"></canvas></div></div>
+                <div class="card"><h3><i class="fa-solid fa-calendar-days" style="color:#5856d6;"></i> 요일·시간 활동 패턴</h3><div class="chart-box" id="chart-activity-wrap" style="overflow:auto;display:flex;align-items:center;justify-content:center;"></div></div>
+                <div class="card"><h3><i class="fa-solid fa-seedling" style="color:#34c759;"></i> 월별 신규 방문지</h3><div class="chart-box"><canvas id="chart-newvenues"></canvas></div></div>
             </div>
         </div>
     </div>
@@ -608,6 +616,55 @@
             const vMap = {}; data.forEach(d => vMap[d.VENUE] = (vMap[d.VENUE]||0)+1);
             const vList = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0, 8);
             renderChart('chart-venues', 'bar', { labels: vList.map(v=>v[0]), datasets: [{ label: '방문수', data: vList.map(v=>v[1]), backgroundColor: '#ff2d55', borderRadius: 5 }] }, horizontalOpts);
+
+            // 7. Activity heatmap (weekday × hour)
+            const actGrid = Array.from({length:7},()=>Array(24).fill(0));
+            data.forEach(d => { actGrid[moment.unix(d.FSQ_UNIXTIME).day()][moment.unix(d.FSQ_UNIXTIME).hour()]++; });
+            const actMax = Math.max(...actGrid.flat(), 1);
+            const dayNames = ['일','월','화','수','목','금','토'];
+            const wrap = document.getElementById('chart-activity-wrap');
+            if (wrap) {
+                let t = `<table style="border-collapse:separate;border-spacing:3px;font-size:11px;color:${tColor};">`;
+                t += '<tr><td style="width:20px;"></td>';
+                for (let h=0;h<24;h++) t += `<td style="text-align:center;width:16px;">${h%6===0?h:''}</td>`;
+                t += '</tr>';
+                for (let d=0;d<7;d++) {
+                    t += `<tr><td style="font-weight:700;text-align:right;padding-right:4px;">${dayNames[d]}</td>`;
+                    for (let h=0;h<24;h++) {
+                        const v=actGrid[d][h];
+                        const a=(v/actMax)<0.01?0.06:0.15+(v/actMax)*0.85;
+                        t+=`<td title="${dayNames[d]} ${h}시 ${v}회" style="width:16px;height:16px;background:rgba(0,113,227,${a.toFixed(2)});border-radius:4px;"></td>`;
+                    }
+                    t += '</tr>';
+                }
+                t += '</table>';
+                wrap.innerHTML = t;
+            }
+
+            // 8. New venues per month
+            const firstM = {};
+            [...data].sort((a,b)=>a.FSQ_UNIXTIME-b.FSQ_UNIXTIME).forEach(d => { if(!firstM[d.VENUE]) firstM[d.VENUE]=moment.unix(d.FSQ_UNIXTIME).format('YY-MM'); });
+            const nMap2 = {};
+            Object.values(firstM).forEach(m => { nMap2[m]=(nMap2[m]||0)+1; });
+            const nLabels = Object.keys(nMap2).sort().slice(-18);
+            renderChart('chart-newvenues', 'bar', { labels: nLabels, datasets: [{ label: '신규 장소', data: nLabels.map(l=>nMap2[l]||0), backgroundColor: '#34c759', borderRadius: 5 }] }, commonOpts);
+
+            // KPI Strip
+            const uniqueV = new Set(data.map(d=>d.VENUE)).size;
+            const wArr2=Array(7).fill(0); data.forEach(d=>wArr2[moment.unix(d.FSQ_UNIXTIME).day()]++);
+            const topCat2 = Object.entries(cMap).sort((a,b)=>b[1]-a[1])[0];
+            const daySet2 = new Set(data.map(d=>moment.unix(d.FSQ_UNIXTIME).format('YYYY-MM-DD')));
+            const sorted2=[...daySet2].sort(); let maxStreak2=0,curS=0;
+            sorted2.forEach((d,i)=>{ if(i===0){curS=1;}else{curS=moment(d).diff(moment(sorted2[i-1]),'days')===1?curS+1:1;} maxStreak2=Math.max(maxStreak2,curS); });
+            const kpiEl = document.getElementById('dash-kpi');
+            if (kpiEl) kpiEl.innerHTML = [
+                {l:'총 방문',v:data.length.toLocaleString()+'회',i:'fa-location-pin',c:'#0071e3'},
+                {l:'고유 장소',v:uniqueV.toLocaleString()+'곳',i:'fa-map-pin',c:'#34c759'},
+                {l:'최애 카테고리',v:topCat2?topCat2[0].split(' ')[0]:'–',i:'fa-tag',c:'#ff9500'},
+                {l:'최장 연속',v:maxStreak2+'일',i:'fa-fire',c:'#ff3b30'},
+                {l:'최고 요일',v:['일','월','화','수','목','금','토'][wArr2.indexOf(Math.max(...wArr2))]+'요일',i:'fa-calendar',c:'#af52de'},
+                {l:'일평균 방문',v:sorted2.length?(data.length/sorted2.length).toFixed(1)+'회':'–',i:'fa-chart-bar',c:'#5856d6'}
+            ].map(k=>`<div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;"><div style="font-size:0.8em;color:var(--text-mute);display:flex;align-items:center;gap:6px;"><i class="fa-solid ${k.i}" style="color:${k.c}"></i>${k.l}</div><div style="font-size:1.4em;font-weight:800;color:var(--text);">${k.v}</div></div>`).join('');
         }
 
         // Bindings
@@ -633,5 +690,11 @@
 
         window.onload = () => { initMap(); fetchData(); setTimeout(()=>map.invalidateSize(), 300); };
     </script>
-</body>
+    <script>
+function tinyauthLogout() {
+  fetch('https://auth.b-612.kr/api/user/logout', {method:'POST',credentials:'include'})
+    .finally(() => { window.location.href = 'https://auth.b-612.kr/login'; });
+}
+</script>
+<script>window.addEventListener("pageshow",function(e){if(e.persisted)window.location.reload();});</script></body>
 </html>

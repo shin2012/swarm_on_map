@@ -9,7 +9,7 @@ import threading
 import pytz
 from timezonefinder import TimezoneFinder
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect
 from dateutil import parser
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -358,13 +358,28 @@ def calculate_times(time_local_str, offset_minutes):
 
 # --- API Routes ---
 
+_MOBILE_UA = ('iphone', 'ipad', 'android', 'mobile', 'blackberry', 'windows phone')
+
+def is_mobile():
+    ua = request.headers.get('User-Agent', '').lower()
+    return any(k in ua for k in _MOBILE_UA)
+
 @app.route('/')
 def index():
+    if is_mobile():
+        return redirect('/m/')
     return render_template('index.html')
 
 @app.route('/manage')
 def manage():
+    if is_mobile():
+        return redirect('/m/')
     return render_template('manage.html')
+
+@app.route('/m')
+@app.route('/m/')
+def mobile():
+    return render_template('m/index.html')
 
 @app.route('/api/manage/list')
 def get_manage_list():

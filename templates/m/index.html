@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Swarm Insights</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/ko.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #ffffff;
+            --bg2: #f5f5f7;
+            --border: #d2d2d7;
+            --text: #1d1d1f;
+            --mute: #86868b;
+            --nav-h: 60px;
+            --safe-b: env(safe-area-inset-bottom, 0px);
+            --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000;
+                --bg2: #1c1c1e;
+                --border: #38383a;
+                --text: #f5f5f7;
+                --mute: #8e8e93;
+            }
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            height: 100%; margin: 0; padding: 0; overflow: hidden;
+            background: var(--bg); color: var(--text);
+            font-family: var(--font);
+        }
+
+        /* ── Bottom Navigation ── */
+        #bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+            height: calc(var(--nav-h) + var(--safe-b));
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            display: flex; align-items: flex-start;
+            padding-bottom: var(--safe-b);
+        }
+        @media (prefers-color-scheme: dark) {
+            #bottom-nav { background: rgba(28,28,30,0.92); }
+        }
+        .nav-tab {
+            flex: 1; height: var(--nav-h); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 3px;
+            cursor: pointer; color: var(--mute); transition: color 0.15s;
+            -webkit-user-select: none; user-select: none;
+        }
+        .nav-tab.active { color: var(--primary); }
+        .nav-tab i { font-size: 1.3em; }
+        .nav-tab span { font-size: 0.62em; font-weight: 600; }
+
+        /* ── Tab Views ── */
+        .tab-view {
+            position: fixed; top: 0; left: 0; right: 0;
+            bottom: calc(var(--nav-h) + var(--safe-b));
+            overflow: hidden; display: none;
+        }
+        .tab-view.active { display: block; }
+
+        /* ═══════════════ MAP TAB ═══════════════ */
+        #tab-map { background: var(--bg2); }
+        #map { width: 100%; height: 100%; }
+
+        .map-top-bar {
+            position: absolute;
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: 12px; right: 12px; z-index: 500;
+            display: flex; gap: 8px; align-items: center;
+        }
+        .map-search-pill {
+            flex: 1; background: var(--bg); border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 14px rgba(0,0,0,0.12);
+            display: flex; align-items: center; padding: 0 14px; height: 46px;
+        }
+        .map-search-pill i { color: var(--mute); margin-right: 8px; font-size: 0.9em; }
+        .map-search-pill input {
+            flex: 1; border: none; outline: none; background: transparent;
+            color: var(--text); font-size: 0.95em; font-family: var(--font);
+        }
+        .map-fab {
+            width: 46px; height: 46px; border-radius: 50%; border: none;
+            background: var(--bg); box-shadow: 0 2px 14px rgba(0,0,0,0.12);
+            color: var(--text); display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1em; flex-shrink: 0;
+        }
+        .map-fab.active { background: var(--primary); color: white; }
+
+        .map-filter-pills {
+            position: absolute; bottom: 14px; left: 0; right: 0; z-index: 500;
+            display: flex; justify-content: center; gap: 8px; padding: 0 12px;
+        }
+        .pill {
+            padding: 8px 16px; border-radius: 22px;
+            background: var(--bg); border: 1px solid var(--border);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 0.82em; font-weight: 700; cursor: pointer; color: var(--text);
+            white-space: nowrap; transition: all 0.15s;
+        }
+        .pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* ═══════════════ HISTORY TAB ═══════════════ */
+        #tab-history { display: none; flex-direction: column; background: var(--bg2); }
+        #tab-history.active { display: flex; }
+
+        .tab-header {
+            padding: 16px 16px 12px; background: var(--bg);
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .tab-header h2 { margin: 0 0 10px; font-size: 1.3em; font-weight: 800; }
+        .search-bar {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--bg2); border-radius: 12px;
+            padding: 9px 14px; border: 1px solid var(--border);
+        }
+        .search-bar i { color: var(--mute); }
+        .search-bar input {
+            flex: 1; border: none; outline: none; background: transparent;
+            color: var(--text); font-size: 0.95em; font-family: var(--font);
+        }
+
+        #history-list { flex: 1; overflow-y: auto; padding: 10px 12px; -webkit-overflow-scrolling: touch; }
+        .checkin-card {
+            background: var(--bg); border-radius: 14px; padding: 13px 14px;
+            margin-bottom: 8px; border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px; cursor: pointer;
+        }
+        .checkin-card:active { background: var(--bg2); }
+        .card-icon {
+            width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
+            background: rgba(0,113,227,0.1);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary); font-size: 1em;
+        }
+        .card-body { flex: 1; min-width: 0; }
+        .card-venue { font-weight: 700; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-meta { font-size: 0.78em; color: var(--mute); margin-top: 2px; }
+        .card-time { font-size: 0.75em; color: var(--mute); flex-shrink: 0; text-align: right; line-height: 1.4; }
+
+        /* ═══════════════ ADD TAB ═══════════════ */
+        #tab-add { display: none; flex-direction: column; background: var(--bg2); }
+        #tab-add.active { display: flex; }
+        #add-form-scroll { flex: 1; overflow-y: auto; padding: 12px 12px 0; -webkit-overflow-scrolling: touch; }
+
+        .form-section {
+            background: var(--bg); border-radius: 14px;
+            border: 1px solid var(--border); overflow: hidden; margin-bottom: 12px;
+        }
+        .form-row-item {
+            display: flex; align-items: center;
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            gap: 12px; position: relative;
+        }
+        .form-row-item:last-child { border-bottom: none; }
+        .form-row-item label {
+            font-size: 0.8em; font-weight: 600; color: var(--mute);
+            width: 52px; flex-shrink: 0;
+        }
+        .form-row-item input {
+            flex: 1; border: none; outline: none; background: transparent;
+            color: var(--text); font-size: 0.95em; font-family: var(--font); min-width: 0;
+        }
+        .input-action { color: var(--primary); cursor: pointer; flex-shrink: 0; padding: 4px; }
+
+        /* Autocomplete dropdown */
+        .ac-results {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+            z-index: 200; box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+            max-height: 220px; overflow-y: auto; display: none;
+        }
+        .ac-item {
+            padding: 11px 16px; cursor: pointer; font-size: 0.9em;
+            border-bottom: 1px solid var(--border);
+        }
+        .ac-item:last-child { border-bottom: none; }
+        .ac-item:active { background: var(--bg2); }
+        .ac-sub { font-size: 0.75em; color: var(--mute); margin-top: 2px; }
+
+        #submit-btn {
+            margin: 12px; padding: 16px; border-radius: 14px;
+            background: var(--primary); color: white; border: none;
+            font-size: 1em; font-weight: 700; cursor: pointer;
+            font-family: var(--font); flex-shrink: 0;
+        }
+
+        /* ═══════════════ STATS TAB ═══════════════ */
+        #tab-stats { display: none; flex-direction: column; background: var(--bg2); }
+        #tab-stats.active { display: flex; }
+
+        .period-chips {
+            display: flex; gap: 8px; padding: 12px; overflow-x: auto;
+            -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-shrink: 0;
+        }
+        .period-chips::-webkit-scrollbar { display: none; }
+        .chip {
+            padding: 8px 18px; border-radius: 22px; border: 1px solid var(--border);
+            background: var(--bg); font-size: 0.82em; font-weight: 700;
+            cursor: pointer; white-space: nowrap; color: var(--text); flex-shrink: 0;
+        }
+        .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        #stats-scroll { flex: 1; overflow-y: auto; padding: 0 12px 12px; -webkit-overflow-scrolling: touch; }
+        .stat-card {
+            background: var(--bg); border-radius: 14px; padding: 16px;
+            border: 1px solid var(--border); margin-bottom: 10px;
+        }
+        .stat-card h4 {
+            margin: 0 0 14px; font-size: 0.9em; font-weight: 700;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .chart-wrap { height: 200px; position: relative; }
+
+        /* ═══════════════ CHECKIN DETAIL SHEET ═══════════════ */
+        #detail-sheet-overlay {
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0,0,0,0.45); display: none; align-items: flex-end;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        }
+        #detail-sheet-overlay.active { display: flex; }
+        #detail-sheet {
+            background: var(--bg); border-radius: 24px 24px 0 0;
+            width: 100%; padding-bottom: calc(20px + var(--safe-b));
+            max-height: 82vh; overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        #detail-sheet-overlay.active #detail-sheet { transform: translateY(0); }
+        .sheet-handle { width: 38px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 18px; }
+        #detail-body { padding: 0 20px; }
+
+        /* ═══════════════ MAP PICKER OVERLAY ═══════════════ */
+        #map-picker-overlay {
+            position: fixed; inset: 0; z-index: 3000;
+            background: var(--bg2); display: none; flex-direction: column;
+        }
+        #map-picker-overlay.active { display: flex; }
+        .picker-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px; background: var(--bg);
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .picker-cancel {
+            padding: 8px 14px; border-radius: 10px;
+            background: var(--bg2); color: var(--text);
+            border: 1px solid var(--border); font-weight: 700;
+            font-size: 0.85em; cursor: pointer; white-space: nowrap;
+        }
+        .picker-header input {
+            flex: 1; padding: 9px 13px; border-radius: 11px;
+            border: 1px solid var(--border); background: var(--bg2);
+            color: var(--text); font-size: 0.9em; outline: none;
+            font-family: var(--font);
+        }
+        .picker-search-btn {
+            padding: 9px 14px; border-radius: 11px; border: none;
+            background: var(--primary); color: white; font-weight: 700;
+            font-size: 0.85em; cursor: pointer; white-space: nowrap;
+        }
+        #picker-map { flex: 1; }
+        .picker-footer {
+            padding: 12px 14px calc(14px + var(--safe-b));
+            background: var(--bg); border-top: 1px solid var(--border); flex-shrink: 0;
+        }
+        #picker-addr-text { font-size: 0.85em; color: var(--mute); margin-bottom: 10px; min-height: 18px; }
+        .picker-confirm {
+            width: 100%; padding: 14px; border-radius: 13px;
+            background: var(--primary); color: white; border: none;
+            font-size: 1em; font-weight: 700; font-family: var(--font); cursor: pointer;
+        }
+
+        /* picker safe-area top */
+        .picker-header {
+            padding-top: calc(12px + env(safe-area-inset-top, 0px));
+        }
+
+        /* flatpickr alt input left-align */
+        .flatpickr-input[readonly], input.flatpickr-mobile { text-align: left !important; }
+
+        /* ── Misc ── */
+        .loading { text-align: center; padding: 48px 16px; color: var(--mute); font-size: 0.9em; }
+        .leaflet-control-zoom { display: none !important; }
+        .fa, .fas, .far, .fab, .fa-solid, .fa-regular {
+            font-family: "Font Awesome 6 Free" !important; font-weight: 900;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════ MAP TAB ══════════════ -->
+<div id="tab-map" class="tab-view active">
+    <div class="map-top-bar">
+        <div class="map-search-pill">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="map-search" placeholder="장소 검색...">
+        </div>
+        <button class="map-fab" id="btn-loc" onclick="goToMyLocation()" title="내 위치">
+            <i class="fa-solid fa-location-crosshairs"></i>
+        </button>
+        <button class="map-fab" id="btn-heat" onclick="toggleHeat()" title="히트맵">
+            <i class="fa-solid fa-fire"></i>
+        </button>
+    </div>
+    <div id="map"></div>
+    <div class="map-filter-pills">
+        <button class="pill" data-days="7">1주</button>
+        <button class="pill" data-days="30">1개월</button>
+        <button class="pill" data-days="365">1년</button>
+        <button class="pill active" data-days="all">전체</button>
+    </div>
+</div>
+
+<!-- ══════════════ HISTORY TAB ══════════════ -->
+<div id="tab-history" class="tab-view">
+    <div class="tab-header">
+        <h2>방문 기록</h2>
+        <div class="search-bar">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="hist-search" placeholder="장소 또는 카테고리...">
+        </div>
+    </div>
+    <div id="history-list">
+        <div class="loading"><i class="fa-solid fa-spinner fa-spin"></i> 로딩 중...</div>
+    </div>
+</div>
+
+<!-- ══════════════ ADD TAB ══════════════ -->
+<div id="tab-add" class="tab-view">
+    <div class="tab-header">
+        <h2>체크인 추가</h2>
+    </div>
+    <div id="add-form-scroll">
+        <!-- Venue block -->
+        <div class="form-section">
+            <div class="form-row-item">
+                <label>장소</label>
+                <input type="text" id="a-venue" placeholder="장소명 입력" autocomplete="off">
+                <input type="hidden" id="a-venue-only">
+                <input type="hidden" id="a-venue-id">
+                <input type="hidden" id="a-country">
+                <input type="hidden" id="a-countrycode">
+                <div id="a-venue-results" class="ac-results"></div>
+            </div>
+            <div class="form-row-item">
+                <label>지점</label>
+                <input type="text" id="a-venue-sub" placeholder="지점명 (선택)">
+            </div>
+            <div class="form-row-item">
+                <label>카테고리</label>
+                <input type="text" id="a-category" placeholder="카테고리" autocomplete="off">
+                <div id="a-cat-results" class="ac-results"></div>
+            </div>
+        </div>
+
+        <!-- Location block -->
+        <div class="form-section">
+            <div class="form-row-item">
+                <label>주소</label>
+                <input type="text" id="a-address" placeholder="주소 입력">
+                <i class="fa-solid fa-map-location-dot input-action" onclick="openMapPicker()"></i>
+                <input type="hidden" id="a-lat">
+                <input type="hidden" id="a-lng">
+                <input type="hidden" id="a-offset" value="540">
+            </div>
+        </div>
+
+        <!-- Time & comment block -->
+        <div class="form-section">
+            <div class="form-row-item">
+                <label>시간</label>
+                <input type="text" id="a-time" placeholder="방문 시간 선택" readonly>
+            </div>
+            <div class="form-row-item">
+                <label>내용</label>
+                <input type="text" id="a-shout" placeholder="코멘트 (선택)">
+            </div>
+        </div>
+    </div>
+    <button id="submit-btn" onclick="submitAdd()">등록하기</button>
+</div>
+
+<!-- ══════════════ STATS TAB ══════════════ -->
+<div id="tab-stats" class="tab-view">
+    <div class="period-chips">
+        <button class="chip" data-days="7">1주</button>
+        <button class="chip" data-days="30">1개월</button>
+        <button class="chip active" data-days="90">3개월</button>
+        <button class="chip" data-days="365">1년</button>
+        <button class="chip" data-days="all">전체</button>
+    </div>
+    <!-- KPI Summary Cards -->
+    <div id="stats-kpi" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 4px;flex-shrink:0;"></div>
+    <div id="stats-scroll">
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-chart-line" style="color:#0071e3"></i> 월별 방문 추이</h4>
+            <div class="chart-wrap"><canvas id="c-timeline"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-tags" style="color:#ff9500"></i> 주요 카테고리</h4>
+            <div class="chart-wrap"><canvas id="c-cats"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-crown" style="color:#ff2d55"></i> 최다 방문 장소</h4>
+            <div class="chart-wrap"><canvas id="c-venues"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-clock" style="color:#34c759"></i> 시간대 분포</h4>
+            <div class="chart-wrap"><canvas id="c-hourly"></canvas></div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-calendar-days" style="color:#5856d6"></i> 요일·시간 활동 패턴</h4>
+            <div id="activity-grid" style="overflow-x:auto;padding-bottom:4px;"></div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fa-solid fa-seedling" style="color:#34c759"></i> 월별 신규 방문지</h4>
+            <div class="chart-wrap"><canvas id="c-newvenues"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<nav id="bottom-nav">
+    <div class="nav-tab active" id="nav-map" onclick="switchTab('map')">
+        <i class="fa-solid fa-map-location-dot"></i>
+        <span>지도</span>
+    </div>
+    <div class="nav-tab" id="nav-history" onclick="switchTab('history')">
+        <i class="fa-solid fa-list-ul"></i>
+        <span>기록</span>
+    </div>
+    <div class="nav-tab" id="nav-add" onclick="switchTab('add')">
+        <i class="fa-solid fa-plus-circle"></i>
+        <span>추가</span>
+    </div>
+    <div class="nav-tab" id="nav-stats" onclick="switchTab('stats')">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>통계</span>
+    </div>
+</nav>
+
+<!-- ══════════════ CHECKIN DETAIL SHEET ══════════════ -->
+<div id="detail-sheet-overlay" onclick="closeDetailSheet(event)">
+    <div id="detail-sheet">
+        <div class="sheet-handle"></div>
+        <div id="detail-body"></div>
+    </div>
+</div>
+
+<!-- ══════════════ MAP PICKER OVERLAY ══════════════ -->
+<div id="map-picker-overlay">
+    <div class="picker-header">
+        <button class="picker-cancel" onclick="closeMapPicker()">취소</button>
+        <input type="text" id="picker-search-input" placeholder="장소 또는 주소 검색...">
+        <button class="picker-search-btn" onclick="searchOnPicker()">검색</button>
+    </div>
+    <div id="picker-map"></div>
+    <div class="picker-footer">
+        <div id="picker-addr-text">지도를 탭하여 위치를 선택하세요</div>
+        <button class="picker-confirm" onclick="confirmLocation()">이 위치 선택</button>
+    </div>
+</div>
+
+<script>
+moment.locale('ko');
+
+let allData = [];
+let map, markers, heatLayer;
+let markerObjects = [];
+let isHeatMode = false;
+let currentFilter = 'all';
+let selectedStatsPeriod = '90';
+let charts = {};
+
+let pickerMapInst = null, pickerMarker = null;
+let pickerLat = null, pickerLng = null, pickerAddr = '';
+
+// ─────────────────────────────────────────
+//  TAB SWITCHING
+// ─────────────────────────────────────────
+function switchTab(name) {
+    document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+
+    if (name === 'map') {
+        setTimeout(() => map && map.invalidateSize(), 100);
+    } else if (name === 'history') {
+        renderHistory();
+        fetchData();
+    } else if (name === 'stats') {
+        renderStats();
+    }
+}
+
+// ─────────────────────────────────────────
+//  DATA
+// ─────────────────────────────────────────
+async function fetchData() {
+    try {
+        const res = await fetch('/api/data?t=' + Date.now());
+        const raw = await res.json();
+        allData = raw.map(d => ({
+            ...d,
+            FSQ_UNIXTIME: parseInt(d.FSQ_UNIXTIME),
+            latNum: parseFloat(d.LAT),
+            lngNum: parseFloat(d.LNG)
+        })).filter(d => d.FSQ_UNIXTIME > 0 && !isNaN(d.latNum));
+        allData.sort((a, b) => a.FSQ_UNIXTIME - b.FSQ_UNIXTIME);
+        createMarkers();
+        applyMapFilter();
+        if (document.getElementById('tab-history').classList.contains('active')) renderHistory();
+    } catch (e) { console.error(e); }
+}
+
+// ─────────────────────────────────────────
+//  MAP
+// ─────────────────────────────────────────
+function initMap() {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    map = L.map('map', { zoomControl: false }).setView([37.5665, 126.9780], 11);
+    L.tileLayer(
+        isDark
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        { attribution: '&copy; CARTO' }
+    ).addTo(map);
+
+    markers = L.markerClusterGroup({
+        maxClusterRadius: 50, showCoverageOnHover: false,
+        iconCreateFunction: cluster => L.divIcon({
+            html: `<div style="background:#0071e3;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.25);">${cluster.getChildCount()}</div>`,
+            className: '', iconSize: [38, 38]
+        })
+    });
+    map.addLayer(markers);
+
+    // Double-tap to zoom
+    let _lastTap = 0;
+    map.getContainer().addEventListener('touchend', e => {
+        if (e.touches.length > 0) return;
+        const now = Date.now();
+        if (now - _lastTap < 300 && e.changedTouches.length === 1) {
+            const rect = map.getContainer().getBoundingClientRect();
+            const t = e.changedTouches[0];
+            const pt = L.point(t.clientX - rect.left, t.clientY - rect.top);
+            map.setView(map.containerPointToLatLng(pt), map.getZoom() + 1, { animate: true });
+            e.preventDefault();
+        }
+        _lastTap = now;
+    }, { passive: false });
+
+    let locMarker = null, locCircle = null;
+    map.on('locationfound', e => {
+        if (locMarker) { map.removeLayer(locMarker); map.removeLayer(locCircle); }
+        locCircle = L.circle(e.latlng, { radius: e.accuracy / 2, color: '#ffcc00', fillColor: '#ffcc00', fillOpacity: 0.15, weight: 1 }).addTo(map);
+        locMarker = L.circleMarker(e.latlng, {
+            radius: 10, fillColor: '#ffcc00', color: '#ff9500',
+            weight: 3, fillOpacity: 1
+        }).addTo(map);
+    });
+    map.on('locationerror', () => alert('현재 위치를 찾을 수 없습니다.'));
+}
+
+function getIconClass(cat) {
+    if (!cat) return 'fa-location-dot';
+    const c = cat.toLowerCase();
+    if (c.includes('food') || c.includes('restaurant') || c.includes('korean') || c.includes('japanese')) return 'fa-utensils';
+    if (c.includes('cafe') || c.includes('coffee') || c.includes('dessert')) return 'fa-mug-hot';
+    if (c.includes('pub') || c.includes('bar') || c.includes('liquor')) return 'fa-beer-mug-empty';
+    if (c.includes('store') || c.includes('shop') || c.includes('mall') || c.includes('market')) return 'fa-bag-shopping';
+    if (c.includes('park') || c.includes('mountain') || c.includes('forest')) return 'fa-tree';
+    if (c.includes('subway') || c.includes('train') || c.includes('station')) return 'fa-train-subway';
+    if (c.includes('home') || c.includes('residence')) return 'fa-house';
+    if (c.includes('gym') || c.includes('fitness') || c.includes('sport')) return 'fa-dumbbell';
+    return 'fa-location-dot';
+}
+
+function createMarkers() {
+    markerObjects = allData.map(d => {
+        const pin = `<div style="width:32px;height:32px;border-radius:50% 50% 50% 0;background:#0071e3;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);"><i class="fa-solid ${getIconClass(d.CATEGORY)}" style="transform:rotate(45deg);color:white;font-size:13px;"></i></div>`;
+        const m = L.marker([d.latNum, d.lngNum], {
+            icon: L.divIcon({ className: '', html: pin, iconSize: [32, 45], iconAnchor: [16, 45] })
+        });
+        m.item = d;
+        m.on('click', () => openDetailSheet(d));
+        return m;
+    });
+}
+
+function applyMapFilter() {
+    if (!map) return;
+    const q = document.getElementById('map-search').value.toLowerCase();
+    const last = allData.length ? allData[allData.length - 1].FSQ_UNIXTIME : Date.now() / 1000;
+
+    let filtered = allData;
+    if (currentFilter !== 'all') {
+        const cutoff = last - parseInt(currentFilter) * 86400;
+        filtered = filtered.filter(d => d.FSQ_UNIXTIME >= cutoff);
+    }
+    if (q) filtered = filtered.filter(d => d.VENUE.toLowerCase().includes(q) || (d.CATEGORY && d.CATEGORY.toLowerCase().includes(q)));
+
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    markers.clearLayers();
+
+    if (isHeatMode && typeof L.heatLayer === 'function') {
+        if (map.hasLayer(markers)) map.removeLayer(markers);
+        heatLayer = L.heatLayer(filtered.map(d => [d.latNum, d.lngNum, 0.6]), { radius: 30, blur: 20, maxZoom: 17 }).addTo(map);
+    } else {
+        if (isHeatMode) { isHeatMode = false; document.getElementById('btn-heat').classList.remove('active'); }
+        if (!map.hasLayer(markers)) map.addLayer(markers);
+        const ids = new Set(filtered.map(d => d.FSQ_UNIXTIME));
+        markerObjects.forEach(m => { if (ids.has(m.item.FSQ_UNIXTIME)) markers.addLayer(m); });
+    }
+}
+
+function toggleHeat() {
+    isHeatMode = !isHeatMode;
+    document.getElementById('btn-heat').classList.toggle('active', isHeatMode);
+    applyMapFilter();
+}
+
+function goToMyLocation() {
+    map.locate({ setView: true, maxZoom: 15 });
+}
+
+document.querySelectorAll('.pill').forEach(p => p.onclick = () => {
+    document.querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    currentFilter = p.dataset.days;
+    applyMapFilter();
+});
+document.getElementById('map-search').oninput = applyMapFilter;
+
+// ─────────────────────────────────────────
+//  HISTORY
+// ─────────────────────────────────────────
+function renderHistory() {
+    const q = document.getElementById('hist-search').value.toLowerCase();
+    const box = document.getElementById('history-list');
+    const data = [...allData].reverse().filter(d =>
+        !q || d.VENUE.toLowerCase().includes(q) || (d.CATEGORY && d.CATEGORY.toLowerCase().includes(q))
+    ).slice(0, 150);
+
+    if (data.length === 0) { box.innerHTML = '<div class="loading">결과 없음</div>'; return; }
+
+    box.innerHTML = data.map(d => `
+        <div class="checkin-card" onclick='openDetailFromHistory(${d.FSQ_UNIXTIME})'>
+            <div class="card-icon"><i class="fa-solid ${getIconClass(d.CATEGORY)}"></i></div>
+            <div class="card-body">
+                <div class="card-venue">${escHtml(d.VENUE)}</div>
+                <div class="card-meta">${escHtml(d.CATEGORY || '–')}</div>
+            </div>
+            <div class="card-time">${moment.unix(d.FSQ_UNIXTIME).format('MM.DD')}<br>${moment.unix(d.FSQ_UNIXTIME).format('HH:mm')}</div>
+        </div>`
+    ).join('');
+}
+
+function openDetailFromHistory(unixtime) {
+    const d = allData.find(x => x.FSQ_UNIXTIME === unixtime);
+    if (d) openDetailSheet(d);
+}
+
+document.getElementById('hist-search').oninput = renderHistory;
+
+// ─────────────────────────────────────────
+//  DETAIL SHEET
+// ─────────────────────────────────────────
+function openDetailSheet(d) {
+    if (!d) return;
+    document.getElementById('detail-body').innerHTML = `
+        <div style="margin-bottom:16px;">
+            <div style="font-size:1.2em;font-weight:800;margin-bottom:5px;">${escHtml(d.VENUE)}</div>
+            <div style="font-size:0.85em;color:var(--mute);">
+                <i class="fa-solid ${getIconClass(d.CATEGORY)}"></i> ${escHtml(d.CATEGORY || '–')}
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:0.88em;margin-bottom:16px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+                <i class="fa-solid fa-clock" style="color:var(--mute);width:15px;margin-top:2px;flex-shrink:0;"></i>
+                <span>${escHtml(d.TIME_KST || '–')}</span>
+            </div>
+            ${d.ADDRESS ? `<div style="display:flex;gap:10px;align-items:flex-start;"><i class="fa-solid fa-location-dot" style="color:var(--mute);width:15px;margin-top:2px;flex-shrink:0;"></i><span>${escHtml(d.ADDRESS)}</span></div>` : ''}
+            ${d.SHOUT ? `<div style="display:flex;gap:10px;align-items:flex-start;"><i class="fa-solid fa-comment" style="color:var(--mute);width:15px;margin-top:2px;flex-shrink:0;"></i><span style="font-style:italic;">"${escHtml(d.SHOUT)}"</span></div>` : ''}
+        </div>
+        ${d.PHOTO ? `<img src="${d.PHOTO}" style="width:100%;border-radius:12px;margin-bottom:16px;max-height:220px;object-fit:cover;">` : ''}
+        <button onclick="showOnMap(${d.latNum}, ${d.lngNum})" style="width:100%;padding:13px;border-radius:12px;background:var(--primary);color:white;border:none;font-weight:700;font-size:0.95em;font-family:var(--font);cursor:pointer;margin-bottom:20px;">
+            <i class="fa-solid fa-map"></i> 지도에서 보기
+        </button>
+    `;
+    document.getElementById('detail-sheet-overlay').classList.add('active');
+}
+
+function closeDetailSheet(e) {
+    if (e && e.target !== document.getElementById('detail-sheet-overlay')) return;
+    document.getElementById('detail-sheet-overlay').classList.remove('active');
+}
+
+function showOnMap(lat, lng) {
+    document.getElementById('detail-sheet-overlay').classList.remove('active');
+    switchTab('map');
+    setTimeout(() => map.setView([lat, lng], 16), 300);
+}
+
+// ─────────────────────────────────────────
+//  STATS
+// ─────────────────────────────────────────
+function renderStats() {
+    const last = allData.length ? allData[allData.length - 1].FSQ_UNIXTIME : 0;
+    let filtered = allData;
+    if (selectedStatsPeriod !== 'all') {
+        const cutoff = last - parseInt(selectedStatsPeriod) * 86400;
+        filtered = allData.filter(d => d.FSQ_UNIXTIME >= cutoff);
+    }
+    renderKPI(filtered);
+    renderActivityGrid(filtered);
+    setTimeout(() => drawCharts(filtered), 80);
+    setTimeout(() => drawNewVenuesChart(filtered), 80);
+}
+
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+    document.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    selectedStatsPeriod = c.dataset.days;
+    renderStats();
+});
+
+function drawCharts(data) {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const tc = isDark ? '#f5f5f7' : '#1d1d1f';
+    const gc = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+    const tickFont = { family: 'Pretendard', size: 10 };
+
+    const base = {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { padding: 10, borderRadius: 8 } },
+        scales: {
+            x: { grid: { color: gc }, ticks: { color: tc, font: tickFont } },
+            y: { grid: { color: gc }, ticks: { color: tc, font: tickFont } }
+        }
+    };
+
+    // Timeline (last 12 months)
+    const tMap = {};
+    data.forEach(d => { const m = moment.unix(d.FSQ_UNIXTIME).format('YY-MM'); tMap[m] = (tMap[m] || 0) + 1; });
+    const tLabels = Object.keys(tMap).sort().slice(-12);
+    mkChart('c-timeline', 'line', {
+        labels: tLabels,
+        datasets: [{ data: tLabels.map(l => tMap[l]), borderColor: '#0071e3', borderWidth: 2, tension: 0.4, fill: true, backgroundColor: 'rgba(0,113,227,0.1)', pointRadius: 3 }]
+    }, base);
+
+    // Categories doughnut
+    const cMap = {};
+    data.forEach(d => { if (d.CATEGORY) cMap[d.CATEGORY] = (cMap[d.CATEGORY] || 0) + 1; });
+    const cTop = Object.entries(cMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const palette = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6', '#ffcc00', '#5ac8fa'];
+    mkChart('c-cats', 'doughnut', {
+        labels: cTop.map(x => x[0]),
+        datasets: [{ data: cTop.map(x => x[1]), backgroundColor: palette, borderWidth: 0 }]
+    }, { ...base, plugins: { legend: { display: true, position: 'bottom', labels: { color: tc, font: { size: 10 }, boxWidth: 12, padding: 10 } }, tooltip: base.plugins.tooltip }, scales: {} });
+
+    // Venues horizontal bar
+    const vAcc = {};
+    data.forEach(d => { vAcc[d.VENUE] = (vAcc[d.VENUE] || 0) + 1; });
+    const vTop = Object.entries(vAcc).sort((a, b) => b[1] - a[1]).slice(0, 8).reverse();
+    mkChart('c-venues', 'bar', {
+        labels: vTop.map(v => v[0].length > 10 ? v[0].slice(0, 9) + '…' : v[0]),
+        datasets: [{ data: vTop.map(v => v[1]), backgroundColor: '#ff2d55', borderRadius: 4 }]
+    }, {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: { padding: 10, borderRadius: 8 } },
+        scales: {
+            x: { beginAtZero: true, grid: { color: gc }, ticks: { color: tc, font: tickFont } },
+            y: { grid: { display: false }, ticks: { color: tc, font: tickFont } }
+        }
+    });
+
+    // Hourly
+    const hArr = Array(24).fill(0);
+    data.forEach(d => hArr[moment.unix(d.FSQ_UNIXTIME).hour()]++);
+    mkChart('c-hourly', 'bar', {
+        labels: Array.from({ length: 24 }, (_, i) => i % 4 === 0 ? i + '시' : ''),
+        datasets: [{ data: hArr, backgroundColor: '#34c759', borderRadius: 3 }]
+    }, base);
+}
+
+function mkChart(id, type, data, opts) {
+    if (charts[id]) charts[id].destroy();
+    const canvas = document.getElementById(id);
+    if (canvas) charts[id] = new Chart(canvas.getContext('2d'), { type, data, options: opts });
+}
+
+function renderKPI(data) {
+    const el = document.getElementById('stats-kpi');
+    if (!el) return;
+    const unique = new Set(data.map(d => d.VENUE)).size;
+    const cMap = {};
+    data.forEach(d => { if (d.CATEGORY) cMap[d.CATEGORY] = (cMap[d.CATEGORY] || 0) + 1; });
+    const topCat = Object.entries(cMap).sort((a, b) => b[1] - a[1])[0];
+    const wArr = Array(7).fill(0);
+    data.forEach(d => wArr[moment.unix(d.FSQ_UNIXTIME).day()]++);
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const topDay = days[wArr.indexOf(Math.max(...wArr))];
+    // longest streak
+    const daySet = new Set(data.map(d => moment.unix(d.FSQ_UNIXTIME).format('YYYY-MM-DD')));
+    const sorted = [...daySet].sort();
+    let streak = 0, maxStreak = 0, cur = 0;
+    sorted.forEach((d, i) => {
+        if (i === 0) { cur = 1; } else {
+            const prev = moment(sorted[i - 1]);
+            cur = moment(d).diff(prev, 'days') === 1 ? cur + 1 : 1;
+        }
+        maxStreak = Math.max(maxStreak, cur);
+    });
+    el.innerHTML = [
+        { label: '총 방문', val: data.length.toLocaleString() + '회', icon: 'fa-location-pin', color: '#0071e3' },
+        { label: '고유 장소', val: unique.toLocaleString() + '곳', icon: 'fa-map-pin', color: '#34c759' },
+        { label: '최애 카테고리', val: topCat ? topCat[0].split(' ')[0] : '–', icon: 'fa-tag', color: '#ff9500' },
+        { label: '최장 연속 방문', val: maxStreak + '일', icon: 'fa-fire', color: '#ff3b30' },
+        { label: '최고 요일', val: topDay + '요일', icon: 'fa-calendar', color: '#af52de' },
+        { label: '일평균 방문', val: data.length && sorted.length ? (data.length / sorted.length).toFixed(1) + '회' : '–', icon: 'fa-chart-bar', color: '#5856d6' }
+    ].map(k => `
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;">
+            <div style="font-size:0.72em;color:var(--mute);display:flex;align-items:center;gap:5px;">
+                <i class="fa-solid ${k.icon}" style="color:${k.color}"></i> ${k.label}
+            </div>
+            <div style="font-size:1.05em;font-weight:800;color:var(--text);">${k.val}</div>
+        </div>`).join('');
+}
+
+function renderActivityGrid(data) {
+    const el = document.getElementById('activity-grid');
+    if (!el) return;
+    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+    data.forEach(d => { grid[moment.unix(d.FSQ_UNIXTIME).day()][moment.unix(d.FSQ_UNIXTIME).hour()]++; });
+    const maxVal = Math.max(...grid.flat(), 1);
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const mutedColor = isDark ? '#636366' : '#aeaeb2';
+
+    let html = `<table style="border-collapse:separate;border-spacing:2px;font-size:0.7em;color:${mutedColor};">`;
+    html += '<tr><td style="width:18px;"></td>';
+    for (let h = 0; h < 24; h++) html += `<td style="text-align:center;width:13px;">${h % 6 === 0 ? h : ''}</td>`;
+    html += '</tr>';
+    for (let d = 0; d < 7; d++) {
+        html += `<tr><td style="font-weight:700;padding-right:2px;">${days[d]}</td>`;
+        for (let h = 0; h < 24; h++) {
+            const v = grid[d][h];
+            const intensity = v / maxVal;
+            const alpha = intensity < 0.01 ? (isDark ? 0.1 : 0.06) : 0.15 + intensity * 0.85;
+            const bg = `rgba(0,113,227,${alpha.toFixed(2)})`;
+            html += `<td title="${days[d]} ${h}시 ${v}회" style="width:13px;height:13px;background:${bg};border-radius:3px;"></td>`;
+        }
+        html += '</tr>';
+    }
+    html += '</table>';
+    el.innerHTML = html;
+}
+
+function drawNewVenuesChart(data) {
+    const firstVisit = {};
+    [...data].sort((a, b) => a.FSQ_UNIXTIME - b.FSQ_UNIXTIME).forEach(d => {
+        if (!firstVisit[d.VENUE]) firstVisit[d.VENUE] = moment.unix(d.FSQ_UNIXTIME).format('YY-MM');
+    });
+    const nMap = {};
+    Object.values(firstVisit).forEach(m => { nMap[m] = (nMap[m] || 0) + 1; });
+    const labels = Object.keys(nMap).sort().slice(-12);
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const tc = isDark ? '#f5f5f7' : '#1d1d1f';
+    const gc = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+    mkChart('c-newvenues', 'bar', {
+        labels,
+        datasets: [{ data: labels.map(l => nMap[l] || 0), backgroundColor: '#34c759', borderRadius: 4 }]
+    }, {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { padding: 10, borderRadius: 8 } },
+        scales: {
+            x: { grid: { color: gc }, ticks: { color: tc, font: { family: 'Pretendard', size: 10 } } },
+            y: { beginAtZero: true, grid: { color: gc }, ticks: { color: tc, font: { family: 'Pretendard', size: 10 } } }
+        }
+    });
+}
+
+// ─────────────────────────────────────────
+//  ADD FORM
+// ─────────────────────────────────────────
+function initAddForm() {
+    flatpickr('#a-time', {
+        enableTime: true, dateFormat: 'Y-m-d H:i',
+        altInput: true, altFormat: 'Y-m-d (D) H:i',
+        locale: 'ko', time_24hr: true, defaultDate: new Date()
+    });
+
+    const venueIn = document.getElementById('a-venue');
+    const venueRes = document.getElementById('a-venue-results');
+
+    venueIn.oninput = async e => {
+        const q = e.target.value;
+        if (q.length < 2) { venueRes.style.display = 'none'; return; }
+        const res = await fetch('/api/manage/venues?q=' + encodeURIComponent(q));
+        const rows = await res.json();
+        if (!rows.length) { venueRes.style.display = 'none'; return; }
+        venueRes.innerHTML = rows.map((r, i) =>
+            `<div class="ac-item" data-i="${i}"><b>${escHtml(r.DISPLAY_NAME)}</b><div class="ac-sub">${escHtml(r.ADDRESS || '')}</div></div>`
+        ).join('');
+        venueRes.querySelectorAll('.ac-item').forEach((el, i) => el.onclick = () => {
+            const r = rows[i];
+            venueIn.value = r.VENUE;
+            setVal('a-venue-only', r.VENUE);
+            setVal('a-venue-sub', r.VENUE_SUB || '');
+            setVal('a-category', r.CATEGORY || '');
+            setVal('a-address', r.ADDRESS || '');
+            setVal('a-lat', r.LAT || '');
+            setVal('a-lng', r.LNG || '');
+            setVal('a-offset', r.FSQ_TIMEZONEOFFSET || 540);
+            setVal('a-venue-id', r.FSQ_VENUEID || '');
+            setVal('a-country', r.COUNTRY || '');
+            setVal('a-countrycode', r.COUNTRYCODE || '');
+            venueRes.style.display = 'none';
+        });
+        venueRes.style.display = 'block';
+    };
+
+    const catIn = document.getElementById('a-category');
+    const catRes = document.getElementById('a-cat-results');
+
+    catIn.oninput = async e => {
+        const res = await fetch('/api/manage/categories?q=' + encodeURIComponent(e.target.value));
+        const cats = await res.json();
+        if (!cats.length) { catRes.style.display = 'none'; return; }
+        catRes.innerHTML = cats.map((c, i) => `<div class="ac-item" data-i="${i}">${escHtml(c)}</div>`).join('');
+        catRes.querySelectorAll('.ac-item').forEach((el, i) => el.onclick = () => { catIn.value = cats[i]; catRes.style.display = 'none'; });
+        catRes.style.display = 'block';
+    };
+
+    document.addEventListener('click', e => {
+        if (!venueIn.contains(e.target) && !venueRes.contains(e.target)) venueRes.style.display = 'none';
+        if (!catIn.contains(e.target) && !catRes.contains(e.target)) catRes.style.display = 'none';
+    });
+}
+
+async function submitAdd() {
+    const venueVal = document.getElementById('a-venue').value;
+    const timeVal = document.getElementById('a-time').value;
+    if (!venueVal || !timeVal) { alert('장소명과 방문시간은 필수입니다.'); return; }
+
+    const data = {
+        venue_only: document.getElementById('a-venue-only').value || venueVal,
+        venue_sub: document.getElementById('a-venue-sub').value,
+        category: document.getElementById('a-category').value,
+        address: document.getElementById('a-address').value,
+        lat: document.getElementById('a-lat').value,
+        lng: document.getElementById('a-lng').value,
+        shout: document.getElementById('a-shout').value,
+        time_local: timeVal,
+        timezone_offset: document.getElementById('a-offset').value,
+        fsq_venueid: document.getElementById('a-venue-id').value,
+        country: document.getElementById('a-country').value,
+        countrycode: document.getElementById('a-countrycode').value
+    };
+
+    try {
+        const res = await fetch('/api/manage/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert('체크인이 추가되었습니다!');
+            ['a-venue', 'a-venue-sub', 'a-category', 'a-address', 'a-shout',
+             'a-venue-only', 'a-venue-id', 'a-country', 'a-countrycode', 'a-lat', 'a-lng'].forEach(id => setVal(id, ''));
+            setVal('a-offset', 540);
+            fetchData();
+        } else { alert('에러: ' + result.error); }
+    } catch (e) { alert('요청 중 오류가 발생했습니다.'); }
+}
+
+// ─────────────────────────────────────────
+//  MAP PICKER
+// ─────────────────────────────────────────
+function openMapPicker() {
+    document.getElementById('map-picker-overlay').classList.add('active');
+    if (!pickerMapInst) {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        pickerMapInst = L.map('picker-map', { zoomControl: false }).setView([37.5665, 126.9780], 13);
+        L.tileLayer(
+            isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                   : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            { attribution: '&copy; CARTO' }
+        ).addTo(pickerMapInst);
+
+        pickerMapInst.on('click', async e => {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            pickerLat = lat; pickerLng = lng;
+            if (pickerMarker) pickerMapInst.removeLayer(pickerMarker);
+            pickerMarker = L.marker([lat, lng]).addTo(pickerMapInst);
+            document.getElementById('picker-addr-text').textContent = '주소 조회 중...';
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
+                const d = await res.json();
+                pickerAddr = formatAddress(d.address, d.display_name);
+                document.getElementById('picker-addr-text').textContent = pickerAddr;
+            } catch (_) {
+                pickerAddr = lat + ', ' + lng;
+                document.getElementById('picker-addr-text').textContent = pickerAddr;
+            }
+        });
+    } else {
+        setTimeout(() => pickerMapInst.invalidateSize(), 100);
+    }
+
+    const lat = document.getElementById('a-lat').value;
+    const lng = document.getElementById('a-lng').value;
+    if (lat && lng) {
+        pickerMapInst.setView([parseFloat(lat), parseFloat(lng)], 15);
+        if (pickerMarker) pickerMapInst.removeLayer(pickerMarker);
+        pickerMarker = L.marker([parseFloat(lat), parseFloat(lng)]).addTo(pickerMapInst);
+    }
+}
+
+function closeMapPicker() {
+    document.getElementById('map-picker-overlay').classList.remove('active');
+}
+
+async function searchOnPicker() {
+    const q = document.getElementById('picker-search-input').value;
+    if (!q) return;
+    try {
+        const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q) + '&addressdetails=1');
+        const data = await res.json();
+        if (data && data.length > 0) {
+            const item = data[0];
+            const lat = parseFloat(item.lat).toFixed(6);
+            const lng = parseFloat(item.lon).toFixed(6);
+            pickerLat = lat; pickerLng = lng;
+            pickerAddr = formatAddress(item.address, item.display_name);
+            pickerMapInst.setView([lat, lng], 16);
+            if (pickerMarker) pickerMapInst.removeLayer(pickerMarker);
+            pickerMarker = L.marker([lat, lng]).addTo(pickerMapInst);
+            document.getElementById('picker-addr-text').textContent = pickerAddr;
+        } else { alert('위치를 찾을 수 없습니다.'); }
+    } catch (e) { console.error(e); }
+}
+
+document.getElementById('picker-search-input').onkeypress = e => { if (e.key === 'Enter') searchOnPicker(); };
+
+function confirmLocation() {
+    if (!pickerLat || !pickerLng) { alert('지도를 탭하여 위치를 선택해주세요.'); return; }
+    setVal('a-lat', pickerLat);
+    setVal('a-lng', pickerLng);
+    setVal('a-address', pickerAddr);
+    closeMapPicker();
+}
+
+// ─────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────
+function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+
+function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatAddress(addr, fallback) {
+    if (!addr) return fallback || '';
+    const parts = [];
+    if (addr.postcode) parts.push(addr.postcode);
+    if (addr.country) parts.push(addr.country);
+    const city = addr.city || addr.town || addr.village || addr.county || '';
+    if (city) parts.push(city);
+    const road = addr.road || addr.suburb || '';
+    if (road) parts.push(road + (addr.house_number ? ' ' + addr.house_number : ''));
+    return parts.join(' ').trim() || fallback || '';
+}
+
+// ─────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────
+window.onload = () => {
+    initMap();
+    fetchData();
+    initAddForm();
+    setTimeout(() => map.invalidateSize(), 300);
+};
+</script>
+</body>
+</html>
