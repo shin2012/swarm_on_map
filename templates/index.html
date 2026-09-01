@@ -117,13 +117,51 @@
         /* FIX: Time Capsule Centering (relative to map-container) */
         #time-capsule {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: calc(100% - 40px); max-width: 580px; z-index: 1000;
+            width: calc(100% - 40px); max-width: 620px; z-index: 1000;
             background: var(--glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            padding: 24px; border-radius: 24px; border: 1px solid var(--border);
+            padding: 20px 24px 18px; border-radius: 24px; border: 1px solid var(--border);
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
         }
 
-        .capsule-info { text-align: center; font-weight: 700; color: var(--text); margin-bottom: 20px; font-size: 1em; }
+        .capsule-top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .capsule-info { flex: 1; font-weight: 700; color: var(--text); font-size: 0.95em; text-align: center; }
+
+        /* Play controls */
+        .play-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .play-btn {
+            width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 1em;
+            background: var(--secondary); color: white;
+            transition: transform 0.15s, opacity 0.15s;
+            box-shadow: 0 2px 8px rgba(0,113,227,0.4);
+        }
+        .play-btn:hover { transform: scale(1.1); }
+        .play-btn.stop-btn { background: var(--sidebar-bg); color: var(--text); box-shadow: none; border: 1px solid var(--border); }
+        .speed-select {
+            padding: 4px 6px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--sidebar-bg); color: var(--text); font-size: 0.8em;
+            font-family: var(--apple-font); font-weight: 700; cursor: pointer; outline: none;
+        }
+
+        /* Now-playing card */
+        #now-playing {
+            display: none; position: absolute; top: -90px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 18px;
+            padding: 12px 20px; min-width: 260px; max-width: 380px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2); text-align: center; white-space: nowrap;
+        }
+        #now-playing .np-venue { font-weight: 800; font-size: 1.1em; color: var(--text); }
+        #now-playing .np-meta  { font-size: 0.82em; color: var(--text-mute); margin-top: 4px; }
+
+        /* Pulsing current-location dot */
+        @keyframes pulse-ring {
+            0%   { transform: scale(1);   opacity: 0.8; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        .pulse-marker { position: relative; width: 14px; height: 14px; }
+        .pulse-marker .dot  { width: 14px; height: 14px; background: #ff3b30; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+        .pulse-marker .ring { position: absolute; top: 0; left: 0; width: 14px; height: 14px; background: rgba(255,59,48,0.4); border-radius: 50%; animation: pulse-ring 1.2s ease-out infinite; }
         
         /* FIX: Scrubber and handle alignment */
         .scrubber-wrapper { 
@@ -277,8 +315,10 @@
             .dash-grid { grid-template-columns: 1fr; }
             #time-capsule { 
                 width: 92%; bottom: 90px; left: 50% !important; 
-                transform: translateX(-50%) !important; padding: 18px;
+                transform: translateX(-50%) !important; padding: 14px 16px;
             }
+            #now-playing { top: -80px; font-size: 0.9em; }
+            .play-btn { width: 32px; height: 32px; font-size: 0.9em; }
             .card { height: 350px; padding: 20px; }
             #list-toggle { display: inline-flex; }
             #close-sidebar { display: none; }
@@ -347,7 +387,27 @@
         <main id="map-container">
             <div id="map"></div>
             <div id="time-capsule">
-                <div class="capsule-info" id="slider-label">데이터 동기화 중...</div>
+                <div id="now-playing">
+                    <div class="np-venue" id="np-venue-text">-</div>
+                    <div class="np-meta" id="np-meta-text">-</div>
+                </div>
+                <div class="capsule-top">
+                    <div class="capsule-info" id="slider-label">데이터 동기화 중...</div>
+                    <div class="play-controls">
+                        <select class="speed-select" id="play-speed">
+                            <option value="800">느리게</option>
+                            <option value="400" selected>보통</option>
+                            <option value="150">빠르게</option>
+                            <option value="50">최고속</option>
+                        </select>
+                        <button class="play-btn" id="play-btn" title="이동경로 재생">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        <button class="play-btn stop-btn" id="stop-btn" title="정지" style="display:none;">
+                            <i class="fa-solid fa-stop"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="scrubber-wrapper">
                     <div id="scrubber"></div>
                 </div>
@@ -399,6 +459,14 @@
         let currentTiles;
         let isHeatMode = false;
         let selectedPeriod = '90';
+
+        // Playback state
+        let playTimer = null;
+        let playIndex = 0;
+        let playData = [];
+        let playPolyline = null;
+        let playCurrentMarker = null;
+        let playTrailMarkers = [];
 
         const CARTO_KEY = 'cb1_2mra_1_20f52391c4787f3b6ed18089';
         const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>';
@@ -669,6 +737,127 @@
             ].map(k=>`<div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;"><div style="font-size:0.8em;color:var(--text-mute);display:flex;align-items:center;gap:6px;"><i class="fa-solid ${k.i}" style="color:${k.c}"></i>${k.l}</div><div style="font-size:1.4em;font-weight:800;color:var(--text);">${k.v}</div></div>`).join('');
         }
 
+        // ── Playback ──────────────────────────────────────────────
+        function startPlayback() {
+            if (!slider) return;
+            const range = slider.get();
+            const s = parseInt(range[0]), e = parseInt(range[1]);
+            const q = document.getElementById('search-input').value.toLowerCase();
+            playData = allData.filter(d =>
+                d.FSQ_UNIXTIME >= s && d.FSQ_UNIXTIME <= e &&
+                (d.VENUE.toLowerCase().includes(q) || (d.CATEGORY && d.CATEGORY.toLowerCase().includes(q)))
+            );
+            if (playData.length === 0) return;
+
+            // UI 전환
+            document.getElementById('play-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'flex';
+            document.getElementById('now-playing').style.display = 'block';
+
+            // 기존 레이어 숨기고 플레이 전용 레이어 준비
+            markers.clearLayers();
+            if (heatLayer) map.removeLayer(heatLayer);
+
+            // 경로선
+            playPolyline = L.polyline([], {
+                color: 'var(--secondary, #0071e3)',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: null,
+                className: 'play-route-line'
+            }).addTo(map);
+
+            playTrailMarkers = [];
+            playIndex = 0;
+
+            // 첫 위치로 지도 이동
+            map.setView([playData[0].latNum, playData[0].lngNum], 13, { animate: true });
+
+            stepPlay();
+        }
+
+        function stepPlay() {
+            if (playIndex >= playData.length) {
+                finishPlayback();
+                return;
+            }
+            const d = playData[playIndex];
+            const latlng = [d.latNum, d.lngNum];
+
+            // 슬라이더 위치 업데이트
+            if (slider) slider.set([playData[0].FSQ_UNIXTIME, d.FSQ_UNIXTIME]);
+
+            // 경로선에 점 추가
+            playPolyline.addLatLng(latlng);
+
+            // 지나간 마커 (작은 점)
+            const trailDot = L.circleMarker(latlng, {
+                radius: 5, color: '#0071e3', fillColor: '#0071e3',
+                fillOpacity: 0.5, weight: 1.5
+            }).addTo(map);
+            playTrailMarkers.push(trailDot);
+
+            // 현재 위치 펄스 마커
+            if (playCurrentMarker) map.removeLayer(playCurrentMarker);
+            playCurrentMarker = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div class="pulse-marker"><div class="ring"></div><div class="dot"></div></div>`,
+                    iconSize: [14, 14], iconAnchor: [7, 7]
+                }),
+                zIndexOffset: 1000
+            }).addTo(map);
+
+            // 지도 부드럽게 따라가기 (경계 근처면 이동)
+            if (!map.getBounds().pad(-0.15).contains(latlng)) {
+                map.panTo(latlng, { animate: true, duration: 0.4 });
+            }
+
+            // now-playing 카드
+            document.getElementById('np-venue-text').textContent = d.VENUE;
+            document.getElementById('np-meta-text').textContent =
+                moment.unix(d.FSQ_UNIXTIME).format('YYYY.MM.DD (ddd) HH:mm') +
+                (d.CATEGORY ? '  ·  ' + d.CATEGORY : '');
+
+            // 진행 표시
+            document.getElementById('slider-label').textContent =
+                `▶ ${playIndex + 1} / ${playData.length}  |  ${moment.unix(d.FSQ_UNIXTIME).format('YYYY.MM.DD')}`;
+
+            playIndex++;
+            const speed = parseInt(document.getElementById('play-speed').value);
+            playTimer = setTimeout(stepPlay, speed);
+        }
+
+        function stopPlayback(restoreView) {
+            clearTimeout(playTimer);
+            playTimer = null;
+
+            // UI 복원
+            document.getElementById('play-btn').style.display = 'flex';
+            document.getElementById('stop-btn').style.display = 'none';
+            document.getElementById('now-playing').style.display = 'none';
+
+            // 레이어 정리
+            if (playPolyline) { map.removeLayer(playPolyline); playPolyline = null; }
+            if (playCurrentMarker) { map.removeLayer(playCurrentMarker); playCurrentMarker = null; }
+            playTrailMarkers.forEach(m => map.removeLayer(m));
+            playTrailMarkers = [];
+
+            // 슬라이더 원위치 후 필터 복원
+            if (slider && restoreView) {
+                const min = allData[0].FSQ_UNIXTIME, max = allData[allData.length - 1].FSQ_UNIXTIME;
+                slider.set([min, max]);
+            }
+            applyAllFilters();
+        }
+
+        function finishPlayback() {
+            // 끝나면 잠깐 완료 표시 후 복원
+            document.getElementById('slider-label').textContent = '✅ 재생 완료!';
+            setTimeout(() => stopPlayback(true), 1500);
+        }
+        // ─────────────────────────────────────────────────────────
+
         // Bindings
         document.getElementById('map-theme-select').onchange = (e) => {
             let t = e.target.value === 'auto' ? getTheme() : e.target.value;
@@ -689,6 +878,8 @@
         document.getElementById('mobile-search-toggle').onclick = () => {
             document.querySelector('.nav-controls').classList.toggle('search-active');
         };
+        document.getElementById('play-btn').onclick = startPlayback;
+        document.getElementById('stop-btn').onclick = () => stopPlayback(true);
 
         window.onload = () => { initMap(); fetchData(); setTimeout(()=>map.invalidateSize(), 300); };
     </script>
