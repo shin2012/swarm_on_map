@@ -1,0 +1,34 @@
+SET NAMES utf8mb4;
+
+DROP TRIGGER IF EXISTS trg_fsq_swarm_before_insert;
+DROP TRIGGER IF EXISTS trg_fsq_swarm_before_update;
+
+DELIMITER //
+
+CREATE TRIGGER trg_fsq_swarm_before_insert
+BEFORE INSERT ON FSQ_Swarm
+FOR EACH ROW
+BEGIN
+  IF (NEW.VENUE_SUB IS NULL OR NEW.VENUE_SUB = '')
+     AND NEW.VENUE REGEXP '.+ .+(점|지점|호점)$'
+  THEN
+    SET NEW.VENUE_SUB = REGEXP_SUBSTR(NEW.VENUE, '[^ ]+$');
+    SET NEW.VENUE = TRIM(REGEXP_REPLACE(NEW.VENUE, ' [^ ]+(점|지점|호점)$', ''));
+  END IF;
+END//
+
+CREATE TRIGGER trg_fsq_swarm_before_update
+BEFORE UPDATE ON FSQ_Swarm
+FOR EACH ROW
+BEGIN
+  IF (NEW.VENUE_SUB IS NULL OR NEW.VENUE_SUB = '')
+     AND NEW.VENUE REGEXP '.+ .+(점|지점|호점)$'
+  THEN
+    SET NEW.VENUE_SUB = REGEXP_SUBSTR(NEW.VENUE, '[^ ]+$');
+    SET NEW.VENUE = TRIM(REGEXP_REPLACE(NEW.VENUE, ' [^ ]+(점|지점|호점)$', ''));
+  END IF;
+END//
+
+DELIMITER ;
+
+SHOW TRIGGERS FROM swarm LIKE 'FSQ_Swarm'\G
