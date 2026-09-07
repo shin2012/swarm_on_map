@@ -10,7 +10,8 @@ services:
     env_file:
       - .env
     networks:
-      - oci_bridge
+      oci_bridge:
+        ipv4_address: 172.19.0.2
 
 networks:
   oci_bridge:
