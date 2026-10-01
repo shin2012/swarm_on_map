@@ -507,4 +507,4 @@ SELECT COUNT(*) FROM FSQ_Swarm WHERE LAT = '' OR LNG = '';
 | **MariaDB** | 10.5+ |
 | **Node.js** | - (Frontend CDN only) |
 
-**마지막 업데이트**: 2024년 현재
+**마지막 업데이트**: 2026년 현재
