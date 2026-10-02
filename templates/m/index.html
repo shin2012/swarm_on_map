@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <script src="/static/venue-pick.js?v=1"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
@@ -365,6 +366,7 @@
                 <input type="hidden" id="a-venue-id">
                 <input type="hidden" id="a-country">
                 <input type="hidden" id="a-countrycode">
+                <input type="hidden" id="a-resolved">
                 <div id="a-venue-results" class="ac-results"></div>
             </div>
             <div class="form-row-item">
@@ -388,6 +390,7 @@
                 <input type="hidden" id="a-lng">
                 <input type="hidden" id="a-offset" value="540">
             </div>
+            <div id="a-note" style="font-size:0.75em; color:var(--mute); padding:0 16px 8px;"></div>
         </div>
 
         <!-- Time & comment block -->
@@ -482,7 +485,7 @@
     <div id="picker-map"></div>
     <div class="picker-footer">
         <div id="picker-addr-text">지도를 탭하여 위치를 선택하세요</div>
-        <button class="picker-confirm" onclick="confirmLocation()">이 위치 선택</button>
+        <button class="picker-confirm" onclick="confirmLocation()">이 위치로 직접 입력</button>
     </div>
 </div>
 
@@ -931,8 +934,12 @@ function initAddForm() {
         venueRes.innerHTML = rows.map((r, i) =>
             `<div class="ac-item" data-i="${i}"><b>${escHtml(r.DISPLAY_NAME)}</b><div class="ac-sub">${escHtml(r.ADDRESS || '')}</div></div>`
         ).join('');
-        venueRes.querySelectorAll('.ac-item').forEach((el, i) => el.onclick = () => {
+        venueRes.querySelectorAll('.ac-item').forEach((el, i) => el.onclick = async () => {
             const r = rows[i];
+            if (r.FSQ_VENUEID && r.LAT) {
+                const v = await VenuePick.resolve({ from: 'swarm', venue_id: r.FSQ_VENUEID, name: r.VENUE, sub: r.VENUE_SUB || '', lat: r.LAT, lng: r.LNG });
+                if (v) { venueRes.style.display = 'none'; applyVenue(v); return; }
+            }
             venueIn.value = r.VENUE;
             setVal('a-venue-only', r.VENUE);
             setVal('a-venue-sub', r.VENUE_SUB || '');
@@ -984,8 +991,10 @@ async function submitAdd() {
         timezone_offset: document.getElementById('a-offset').value,
         fsq_venueid: document.getElementById('a-venue-id').value,
         country: document.getElementById('a-country').value,
-        countrycode: document.getElementById('a-countrycode').value
+        countrycode: document.getElementById('a-countrycode').value,
+        resolved: document.getElementById('a-resolved').value === '1'
     };
+    if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }
 
     try {
         const res = await fetch('/api/manage/add', {
@@ -995,9 +1004,10 @@ async function submitAdd() {
         });
         const result = await res.json();
         if (result.success) {
-            alert('체크인이 추가되었습니다!');
+            alert('체크인이 추가되었습니다!\n' + (result.address || '') + '\n캘린더에는 1분 안에 올라갑니다.');
             ['a-venue', 'a-venue-sub', 'a-category', 'a-address', 'a-shout',
-             'a-venue-only', 'a-venue-id', 'a-country', 'a-countrycode', 'a-lat', 'a-lng'].forEach(id => setVal(id, ''));
+             'a-venue-only', 'a-venue-id', 'a-country', 'a-countrycode', 'a-lat', 'a-lng', 'a-resolved'].forEach(id => setVal(id, ''));
+            const n = document.getElementById('a-note'); if (n) n.textContent = '';
             setVal('a-offset', 540);
             fetchData();
         } else { alert('에러: ' + result.error); }
@@ -1025,15 +1035,11 @@ function openMapPicker() {
             if (pickerMarker) pickerMapInst.removeLayer(pickerMarker);
             pickerMarker = L.marker([lat, lng]).addTo(pickerMapInst);
             document.getElementById('picker-addr-text').textContent = '주소 조회 중...';
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
-                const d = await res.json();
-                pickerAddr = formatAddress(d.address, d.display_name);
-                document.getElementById('picker-addr-text').textContent = pickerAddr;
-            } catch (_) {
-                pickerAddr = lat + ', ' + lng;
-                document.getElementById('picker-addr-text').textContent = pickerAddr;
-            }
+            showPickerCands(lat, lng, '');
+            const g = await VenuePick.geocode(lat, lng);   // 한국 카카오, 해외 OpenStreetMap
+            pickerAddr = g && g.address ? g.address : lat + ', ' + lng;
+            pickerGeo = g;
+            document.getElementById('picker-addr-text').textContent = pickerAddr;
         });
     } else {
         setTimeout(() => pickerMapInst.invalidateSize(), 100);
@@ -1055,6 +1061,9 @@ function closeMapPicker() {
 async function searchOnPicker() {
     const q = document.getElementById('picker-search-input').value;
     if (!q) return;
+    const c = pickerMapInst.getCenter();
+    const all = await showPickerCands(c.lat.toFixed(6), c.lng.toFixed(6), q);
+    if (all && all.some(x => x.from !== 'addr')) return;
     try {
         const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q) + '&addressdetails=1');
         const data = await res.json();
@@ -1063,10 +1072,13 @@ async function searchOnPicker() {
             const lat = parseFloat(item.lat).toFixed(6);
             const lng = parseFloat(item.lon).toFixed(6);
             pickerLat = lat; pickerLng = lng;
-            pickerAddr = formatAddress(item.address, item.display_name);
             pickerMapInst.setView([lat, lng], 16);
             if (pickerMarker) pickerMapInst.removeLayer(pickerMarker);
             pickerMarker = L.marker([lat, lng]).addTo(pickerMapInst);
+            showPickerCands(lat, lng, '');
+            const g = await VenuePick.geocode(lat, lng);
+            pickerAddr = g && g.address ? g.address : formatAddress(item.address, item.display_name);
+            pickerGeo = g;
             document.getElementById('picker-addr-text').textContent = pickerAddr;
         } else { alert('위치를 찾을 수 없습니다.'); }
     } catch (e) { console.error(e); }
@@ -1074,12 +1086,43 @@ async function searchOnPicker() {
 
 document.getElementById('picker-search-input').onkeypress = e => { if (e.key === 'Enter') searchOnPicker(); };
 
+let pickerGeo = null;
 function confirmLocation() {
     if (!pickerLat || !pickerLng) { alert('지도를 탭하여 위치를 선택해주세요.'); return; }
     setVal('a-lat', pickerLat);
     setVal('a-lng', pickerLng);
     setVal('a-address', pickerAddr);
+    if (pickerGeo) { setVal('a-country', pickerGeo.country || ''); setVal('a-countrycode', pickerGeo.cc || ''); }
     closeMapPicker();
+}
+
+// 근처 후보 (내 체크인 · 포스퀘어 · 카카오) — 고르면 서버 규칙으로 정한 값으로 채움
+function showPickerCands(lat, lng, q) {
+    let box = document.getElementById('picker-cands');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'picker-cands';
+        box.style.cssText = 'margin:-4px 0 10px; max-height:34vh;';
+        document.getElementById('picker-addr-text').insertAdjacentElement('afterend', box);
+    }
+    return VenuePick.show(box, lat, lng, q, v => { applyVenue(v); closeMapPicker(); });
+}
+
+function applyVenue(v) {
+    document.getElementById('a-venue').value = v.name || '';
+    setVal('a-venue-only', v.name || '');
+    setVal('a-venue-sub', v.sub || '');
+    setVal('a-category', v.category || '');
+    setVal('a-address', v.address || '');
+    setVal('a-lat', (+v.lat).toFixed(7));
+    setVal('a-lng', (+v.lng).toFixed(7));
+    setVal('a-venue-id', v.venue_id || '');
+    setVal('a-country', v.country || '');
+    setVal('a-countrycode', v.cc || '');
+    setVal('a-resolved', '1');
+    const n = document.getElementById('a-note');
+    if (n) n.textContent = v.note || '';
+    if (!v.name) document.getElementById('a-venue').focus();
 }
 
 // ─────────────────────────────────────────

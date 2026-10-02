@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+    <script src="/static/venue-pick.js?v=1"></script>
     <style>
         :root {
             --bg: #f5f5f7; --bg-card: #ffffff; --border: #d2d2d7; --text: #1d1d1f; --text-mute: #86868b; --secondary: #0071e3;
@@ -74,7 +75,7 @@
         
         /* Draggable Modal Style */
         #map-modal {
-            display: none; position: fixed; top: 15%; left: 50%; width: 500px; 
+            display: none; position: fixed; top: 4vh; left: 50%; width: 520px; max-height: 92vh; 
             transform: translateX(-50%);
             background: var(--bg-card); z-index: 2000; 
             border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); 
@@ -90,7 +91,8 @@
         }
         .close-modal { cursor: pointer; font-size: 1.2em; color: var(--text-mute); }
         .modal-body { padding: 15px; flex: 1; display: flex; flex-direction: column; }
-        #mini-map { height: 350px; width: 100%; border-radius: 12px; border: 1px solid var(--border); flex: 1; }
+        #mini-map { height: 300px; min-height: 240px; width: 100%; border-radius: 12px; border: 1px solid var(--border); flex: 0 0 auto; }
+        #map-cands.vp-box { max-height: 300px; }
         
         .search-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
         .search-row input { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 200px; font-size: 0.85em; }
@@ -117,6 +119,7 @@
                         <input type="hidden" id="add-venue-id">
                         <input type="hidden" id="add-country">
                         <input type="hidden" id="add-countrycode">
+                        <input type="hidden" id="add-resolved">
                         <div id="venue-results" class="autocomplete-results"></div>
                     </div>
                     <div class="form-group min-w" style="flex: 0.6;"><label>지점</label><input type="text" id="add-venue-sub" placeholder="점"></div>
@@ -137,6 +140,7 @@
                     <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
                     <button class="btn-primary" onclick="submitAdd()">등록</button>
                 </div>
+                <div id="add-note" style="font-size:0.75em; color:var(--text-mute); margin-top:4px;"></div>
             </div>
 
             <!-- List Section -->
@@ -181,7 +185,8 @@
                 <button class="btn-primary" onclick="searchOnMap()" style="padding:0 15px; height:36px; margin-bottom: 0;"><i class="fa-solid fa-magnifying-glass"></i></button>
             </div>
             <div id="mini-map"></div>
-            <p style="font-size:0.8em; color:var(--text-mute); margin-top:8px; margin-bottom: 0;">지도 클릭 시 주소와 좌표가 자동 입력됩니다.</p>
+            <p id="map-hint" style="font-size:0.8em; color:var(--text-mute); margin-top:8px; margin-bottom: 0;">지도를 누르면 그 근처 장소(내 체크인 · 포스퀘어 · 카카오)를 보여줍니다. 고르면 주소까지 규칙대로 채워져요.</p>
+            <div id="map-cands"></div>
         </div>
     </div>
 
@@ -317,15 +322,18 @@
         async function searchOnMap() {
             const q = document.getElementById('map-search-input').value;
             if (!q) return;
+            // 1) 지도 중심 근처에서 이름으로 (내 체크인 · 포스퀘어 · 카카오)
+            const c = map.getCenter();
+            const all = await VenuePick.show(document.getElementById('map-cands'), c.lat.toFixed(6), c.lng.toFixed(6), q, pickVenue);
+            if (all && all.some(x => x.from !== 'addr')) return;
+            // 2) 없으면 위치 검색 (OpenStreetMap) 후 그 근처 후보
             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1`);
             const data = await res.json();
             if (data && data.length > 0) {
-                const item = data[0];
-                const lat = parseFloat(item.lat).toFixed(6);
-                const lng = parseFloat(item.lon).toFixed(6);
+                const lat = parseFloat(data[0].lat).toFixed(6);
+                const lng = parseFloat(data[0].lon).toFixed(6);
                 map.setView([lat, lng], 16);
-                const formattedAddr = formatAddress(item.address, item.display_name);
-                applyAddress(lat, lng, formattedAddr, item.address);
+                setCoords(lat, lng);
             } else {
                 alert('위치를 찾을 수 없습니다.');
             }
@@ -336,15 +344,37 @@
         };
 
         async function setCoords(lat, lng) {
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
-                const data = await res.json();
-                const formattedAddr = formatAddress(data.address, data.display_name);
-                applyAddress(lat, lng, formattedAddr, data.address);
-            } catch(e) { 
-                console.error("Geocoding Error", e);
-                applyAddress(lat, lng, "", null);
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+            VenuePick.show(document.getElementById('map-cands'), lat, lng, '', pickVenue);
+            const g = await VenuePick.geocode(lat, lng);   // 한국 카카오, 해외 OpenStreetMap
+            applyAddress(lat, lng, g ? g.address : '', g ? { country: g.country, country_code: g.cc } : null);
+        }
+
+        // 후보를 고르면: 장소명·지점·분류·좌표·주소·장소 ID·국가를 서버가 정한 값으로 채움
+        function pickVenue(v) {
+            const editRow = document.querySelector('.row-edit');
+            const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; };
+            const lat = (+v.lat).toFixed(7), lng = (+v.lng).toFixed(7);
+            if (editRow) {
+                const id = editRow.id.replace('row-', '');
+                if (v.name) set(`edit-venue-${id}`, v.name);
+                set(`edit-venue-sub-${id}`, v.sub);
+                if (v.category) set(`edit-category-${id}`, v.category);
+                set(`edit-address-${id}`, v.address); set(`edit-lat-${id}`, lat); set(`edit-lng-${id}`, lng);
+                set(`edit-venue-id-${id}`, v.venue_id); set(`edit-country-${id}`, v.country); set(`edit-countrycode-${id}`, v.cc);
+            } else {
+                venueInput.value = v.name || '';
+                set('add-venue-only', v.name); set('add-venue-sub', v.sub); set('add-category', v.category);
+                set('add-address', v.address); set('add-lat', lat); set('add-lng', lng);
+                set('add-venue-id', v.venue_id); set('add-country', v.country); set('add-countrycode', v.cc);
+                set('add-resolved', '1');
+                document.getElementById('add-note').textContent = v.note || '';
+                if (!v.name) venueInput.focus();
             }
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([+v.lat, +v.lng]).addTo(map);
+            closeMapModal();
         }
 
         async function fetchList() {
@@ -401,6 +431,9 @@
                     <input type="hidden" id="edit-lat-${fsqId}" value="${item.LAT}">
                     <input type="hidden" id="edit-lng-${fsqId}" value="${item.LNG}">
                     <input type="hidden" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}">
+                    <input type="hidden" id="edit-venue-id-${fsqId}" value="">
+                    <input type="hidden" id="edit-country-${fsqId}" value="${item.COUNTRY || ''}">
+                    <input type="hidden" id="edit-countrycode-${fsqId}" value="${item.COUNTRYCODE || ''}">
                 </td>
                 <td style="white-space:nowrap;">
                     <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')" title="저장"><i class="fa-solid fa-check"></i></button>
@@ -435,7 +468,10 @@
                 time_local: parsedTime,
                 timezone_offset: document.getElementById(`edit-offset-${fsqId}`).value,
                 gcal_eventid: gcalId,
-                fsq_unixtime: item.FSQ_UNIXTIME
+                fsq_unixtime: item.FSQ_UNIXTIME,
+                fsq_venueid: document.getElementById(`edit-venue-id-${fsqId}`).value,
+                country: document.getElementById(`edit-country-${fsqId}`).value,
+                countrycode: document.getElementById(`edit-countrycode-${fsqId}`).value
             };
             const res = await fetch(`/api/manage/update/${fsqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const result = await res.json();
@@ -519,7 +555,11 @@
                     const div = document.createElement('div');
                     div.className = 'result-item';
                     div.innerHTML = `<div><b>${item.DISPLAY_NAME}</b></div><div class="addr">${item.ADDRESS || ''}</div>`;
-                    div.onclick = () => {
+                    div.onclick = async () => {
+                        if (item.FSQ_VENUEID && item.LAT) {
+                            const v = await VenuePick.resolve({ from: 'swarm', venue_id: item.FSQ_VENUEID, name: item.VENUE, sub: item.VENUE_SUB || '', lat: item.LAT, lng: item.LNG });
+                            if (v) { venueResults.style.display = 'none'; pickVenue(v); return; }
+                        }
                         venueInput.value = item.VENUE; // Base venue name only
                         document.getElementById('add-venue-only').value = item.VENUE;
                         document.getElementById('add-venue-sub').value = item.VENUE_SUB || '';
@@ -583,11 +623,13 @@
                 timezone_offset: document.getElementById('add-offset').value,
                 fsq_venueid: document.getElementById('add-venue-id').value,
                 country: document.getElementById('add-country').value,
-                countrycode: document.getElementById('add-countrycode').value
+                countrycode: document.getElementById('add-countrycode').value,
+                resolved: document.getElementById('add-resolved').value === '1'
             };
+            if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }
             const res = await fetch('/api/manage/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const result = await res.json();
-            if (result.success) { alert('추가되었습니다.'); location.reload(); } else { alert('에러: ' + result.error); }
+            if (result.success) { alert('추가되었습니다.\n' + (result.address || '') + '\n캘린더에는 1분 안에 올라갑니다.'); location.reload(); } else { alert('에러: ' + result.error); }
         }
 
         async function deleteCheckin(fsqId, gcalId) {

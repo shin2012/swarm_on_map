@@ -14,6 +14,7 @@ from dateutil import parser
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
+import venue
 
 def log(msg):
     sys.stderr.write(f"LOG: {msg}\n")
@@ -34,6 +35,7 @@ def get_db_connection():
     return mysql.connector.connect(**DB_CONFIG)
 
 tf = TimezoneFinder()
+venue.init(get_db_connection)
 
 def setup_db_and_workers():
     # Wait for DB to be ready
@@ -399,7 +401,8 @@ def get_manage_list():
         query = """
             SELECT FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET, CITY,
                 CASE WHEN VENUE_SUB LIKE '%%점' THEN CONCAT(VENUE, ' (', VENUE_SUB, ')') ELSE VENUE END AS VENUE,
-                VENUE as VENUE_ONLY, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, GCal_EventID
+                VENUE as VENUE_ONLY, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, GCal_EventID,
+                COUNTRY, COUNTRYCODE, FSQ_VENUEID
             FROM FSQ_Swarm WHERE VENUE LIKE %s OR ADDRESS LIKE %s ORDER BY FSQ_UNIXTIME DESC LIMIT %s OFFSET %s
         """
         cursor.execute(query, (f"%{q}%", f"%{q}%", limit, offset))
@@ -418,7 +421,7 @@ def search_venues():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         query = """
-            SELECT DISTINCT VENUE, VENUE_SUB, ADDRESS, LAT, LNG, CATEGORY, FSQ_TIMEZONEOFFSET, FSQ_VENUEID, COUNTRY, COUNTRYCODE,
+            SELECT DISTINCT VENUE, VENUE_SUB, ADDRESS, LAT, LNG, CATEGORY, FSQ_TIMEZONEOFFSET, FSQ_VENUEID, COUNTRY, COUNTRYCODE, CITY,
                 CASE WHEN VENUE_SUB LIKE '%%점' THEN CONCAT(VENUE, ' (', VENUE_SUB, ')') ELSE VENUE END AS DISPLAY_NAME
             FROM FSQ_Swarm WHERE VENUE LIKE %s LIMIT 10
         """
@@ -445,6 +448,35 @@ def search_categories():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/manage/candidates')
+def venue_candidates():
+    """좌표 근처 후보: 내 체크인 · 포스퀘어 · 카카오(한국) · 주소. 같은 가게는 포스퀘어+카카오 한 줄."""
+    try:
+        return jsonify(venue.candidates(request.args['lat'], request.args['lng'], request.args.get('q', '')))
+    except Exception as e:
+        log(f"candidates error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/manage/resolve', methods=['POST'])
+def venue_resolve():
+    """고른 후보 → 저장할 값 (포스퀘어 > 카카오 > 직접, 주소 규칙 적용)."""
+    try:
+        return jsonify(venue.resolve(request.json.get('cand') or {}))
+    except Exception as e:
+        log(f"resolve error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/manage/geocode')
+def venue_geocode():
+    """좌표 → 주소·도시·국가 (한국 카카오, 해외 OpenStreetMap)."""
+    try:
+        return jsonify(venue.place_address(request.args['lat'], request.args['lng']))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/manage/add', methods=['POST'])
 def add_checkin():
     data = request.json
@@ -454,22 +486,28 @@ def add_checkin():
         
         # Use the same unixtime for FSQ_ID to keep them consistent
         fsq_id = f"ManuallySaved_{unixtime}"
-        
-        gcal_data = {**data, 'fsq_unixtime': unixtime, 'venue': data['venue_only']}
-        gcal_eventid = sync_to_gcal('add', gcal_data)
+        # 주소·도시·국가: 한국은 '{우편번호} 대한민국 {행정구역} {도로명} {건물}', 해외는 OpenStreetMap (venue.py)
+        place = venue.fill_place(data, keep_address=bool(data.get('resolved')))
+        venue_id = (data.get('fsq_venueid') or '').strip() or f"{venue.MANUAL_VENUE}{unixtime}"
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM FSQ_Swarm WHERE FSQ_ID=%s", (fsq_id,))
+        if cursor.fetchone():
+            fsq_id = f"ManuallySaved_{unixtime + 1}"
+        # CALENDAR_SENT='N' → 람다(getSwarmCheckins, cron_FSQ-GCal-Sync 1분마다)가 구글 캘린더에 올리고 'Y' + GCal_EventID 로 바꿈
+        # 람다가 설명을 SHOUT + PHOTO 로 만들어서 PHOTO 가 NULL 이면 그 줄에서 멈춤 → '' 로 넣음
         query = """
             INSERT INTO FSQ_Swarm (FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET, VENUE, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, 
-             COUNTRY, COUNTRYCODE, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, GCal_EventID, MODIFIED, FSQ_VENUEID, FSQ_ISMAYER, FSQ_ISPRIVATE, CALENDAR_SENT)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, 'N', 'N', 'Y')
+             COUNTRY, COUNTRYCODE, CITY, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, PHOTO, GCal_EventID, MODIFIED, FSQ_VENUEID, FSQ_ISMAYER, FSQ_ISPRIVATE, CALENDAR_SENT)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '', NULL, NOW(), %s, 'N', 'N', 'N')
         """
-        cursor.execute(query, (fsq_id, unixtime, offset, data['venue_only'], data.get('venue_sub', ''), data['category'], data['lat'], data['lng'], data['address'], 
-            data.get('country', ''), data.get('countrycode', ''), time_local, time_kst, time_utc, data['shout'], gcal_eventid, data.get('fsq_venueid', '')))
+        cursor.execute(query, (fsq_id, unixtime, offset, data['venue_only'], data.get('venue_sub', ''), data.get('category', ''),
+            f"{float(data['lat']):.7f}", f"{float(data['lng']):.7f}", place['address'][:255],
+            place['country'], place['countrycode'], place['city'], time_local, time_kst, time_utc, data.get('shout', ''), venue_id[:24]))
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({"success": True, "fsq_id": fsq_id})
+        return jsonify({"success": True, "fsq_id": fsq_id, "venue_id": venue_id[:24], "address": place['address']})
     except Exception as e:
         log(f"Error adding checkin: {e}")
         return jsonify({"error": str(e)}), 500
@@ -480,18 +518,27 @@ def update_checkin(fsq_id):
     try:
         offset = get_timezone_offset(data['lat'], data['lng'], data['time_local'])
         unixtime, time_utc, time_kst, time_local = calculate_times(data['time_local'], offset)
+        place = venue.fill_place(data, keep_address=True)
+        data['address'] = place['address']
         sync_data = {**data, 'fsq_id': fsq_id, 'fsq_unixtime': unixtime, 'venue': data['venue_only']}
         sync_to_swarm('update', sync_data)
         sync_to_gcal('update', sync_data)
         conn = get_db_connection()
         cursor = conn.cursor()
         query = """
-            UPDATE FSQ_Swarm SET VENUE=%s, VENUE_SUB=%s, CATEGORY=%s, LAT=%s, LNG=%s, ADDRESS=%s, 
-                TIME_LOCAL=%s, TIME_KST=%s, TIME_UTC=%s, FSQ_TIMEZONEOFFSET=%s, SHOUT=%s, FSQ_UNIXTIME=%s, MODIFIED=NOW(), CITY=NULL
+            UPDATE FSQ_Swarm SET
+                CITY=IF(ABS(CAST(LAT AS DECIMAL(12,7)) - %s) < 0.00001 AND ABS(CAST(LNG AS DECIMAL(12,7)) - %s) < 0.00001
+                        AND IFNULL(CITY,'') <> '', CITY, %s),
+                VENUE=%s, VENUE_SUB=%s, CATEGORY=%s, LAT=%s, LNG=%s, ADDRESS=%s, 
+                TIME_LOCAL=%s, TIME_KST=%s, TIME_UTC=%s, FSQ_TIMEZONEOFFSET=%s, SHOUT=%s, FSQ_UNIXTIME=%s, MODIFIED=NOW(),
+                COUNTRY=%s, COUNTRYCODE=%s, FSQ_VENUEID=COALESCE(NULLIF(%s, ''), FSQ_VENUEID)
             WHERE FSQ_ID=%s
         """
-        cursor.execute(query, (data['venue_only'], data.get('venue_sub', ''), data['category'], data['lat'], data['lng'], data['address'], 
-            time_local, time_kst, time_utc, offset, data['shout'], unixtime, fsq_id))
+        # 도시: 위치가 그대로면 기존 값(포스퀘어 값) 유지, 옮겼으면 새 위치 기준
+        cursor.execute(query, (float(data['lat']), float(data['lng']), place['city'] or None,
+            data['venue_only'], data.get('venue_sub', ''), data.get('category', ''), data['lat'], data['lng'], place['address'][:255],
+            time_local, time_kst, time_utc, offset, data.get('shout', ''), unixtime,
+            place['country'], place['countrycode'], (data.get('fsq_venueid') or '')[:24], fsq_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -506,9 +553,8 @@ def delete_checkin(fsq_id):
     try:
         log(f"Starting deletion sequence for {fsq_id}")
         swarm_ok = sync_to_swarm('delete', {'fsq_id': fsq_id})
-        gcal_ok = True
-        if gcal_id:
-            gcal_ok = sync_to_gcal('delete', {'gcal_eventid': gcal_id, 'fsq_id': fsq_id})
+        # 화면에 GCal_EventID 가 없어도(람다가 막 등록한 경우) DB 에서 찾아 지움
+        gcal_ok = sync_to_gcal('delete', {'gcal_eventid': gcal_id, 'fsq_id': fsq_id})
         
         if not swarm_ok or not gcal_ok:
             return jsonify({"error": "Failed to sync deletion with external services. DB not updated."}), 500
