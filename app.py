@@ -212,6 +212,9 @@ def get_gcal_service():
 
 GCAL_ID = "2nni9aea85ne72iofr53f51pts@group.calendar.google.com"
 
+# CarPlay API Token
+CARPLAY_API_TOKEN = os.getenv("CARPLAY_API_TOKEN", "")
+
 def sync_to_swarm(action, data):
     """Implement Swarm API sync logic."""
     fsq_id = data.get('fsq_id')
@@ -538,6 +541,91 @@ def get_data():
         return jsonify(rows)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# --- CarPlay API ---
+
+@app.route('/api/carplay/health', methods=['GET'])
+def carplay_health():
+    return jsonify({'status': 'ok'})
+
+def check_carplay_auth():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not CARPLAY_API_TOKEN or token != CARPLAY_API_TOKEN:
+        return False
+    return True
+
+@app.route('/api/carplay/event', methods=['POST'])
+def carplay_event():
+    if not check_carplay_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({'error': 'invalid json'}), 400
+
+    event_type = data.get('event')
+    if event_type not in ('car_start', 'car_end'):
+        return jsonify({'error': 'event must be car_start or car_end'}), 400
+
+    from datetime import timedelta
+    ts_str = data.get('timestamp')
+    if ts_str:
+        try:
+            dt = datetime.fromisoformat(ts_str)
+        except ValueError:
+            return jsonify({'error': 'invalid timestamp format'}), 400
+    else:
+        dt = datetime.now(timezone(timedelta(hours=9)))
+
+    if dt.tzinfo:
+        dt_kst = dt.astimezone(timezone(timedelta(hours=9)))
+    else:
+        dt_kst = dt
+
+    event_time = dt_kst.strftime('%Y-%m-%d %H:%M:%S')
+    lat = data.get('lat', '')
+    lng = data.get('lng', '')
+    device = data.get('device', '')
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO FSQ_CarPlay (event_type, event_time, lat, lng, device) VALUES (%s, %s, %s, %s, %s)',
+            (event_type, event_time, str(lat) if lat else None, str(lng) if lng else None, device or None)
+        )
+        conn.commit()
+        insert_id = cursor.lastrowid
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'status': 'ok', 'id': insert_id, 'event': event_type, 'time': event_time}), 201
+
+@app.route('/api/carplay/history', methods=['GET'])
+def carplay_history():
+    if not check_carplay_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+
+    limit = request.args.get('limit', 20, type=int)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT id, event_type, event_time, lat, lng, device, created_at FROM FSQ_CarPlay ORDER BY event_time DESC LIMIT %s', (limit,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        result = []
+        for r in rows:
+            result.append({
+                'id': r['id'], 'event': r['event_type'], 'time': str(r['event_time']),
+                'lat': r['lat'], 'lng': r['lng'], 'device': r['device'],
+                'created_at': str(r['created_at'])
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5005, debug=True)
