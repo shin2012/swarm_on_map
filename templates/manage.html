@@ -119,6 +119,8 @@
                         <input type="hidden" id="add-venue-id">
                         <input type="hidden" id="add-country">
                         <input type="hidden" id="add-countrycode">
+                        <input type="hidden" id="add-kakao-place-id">
+                        <input type="hidden" id="add-tmap-poi-id">
                         <input type="hidden" id="add-resolved">
                         <div id="venue-results" class="autocomplete-results"></div>
                     </div>
@@ -363,11 +365,13 @@
                 if (v.category) set(`edit-category-${id}`, v.category);
                 set(`edit-address-${id}`, v.address); set(`edit-lat-${id}`, lat); set(`edit-lng-${id}`, lng);
                 set(`edit-venue-id-${id}`, v.venue_id); set(`edit-country-${id}`, v.country); set(`edit-countrycode-${id}`, v.cc);
+                set(`edit-kakao-place-id-${id}`, v.kakao_id); set(`edit-tmap-poi-id-${id}`, v.tmap_poi_id);
             } else {
                 venueInput.value = v.name || '';
                 set('add-venue-only', v.name); set('add-venue-sub', v.sub); set('add-category', v.category);
                 set('add-address', v.address); set('add-lat', lat); set('add-lng', lng);
                 set('add-venue-id', v.venue_id); set('add-country', v.country); set('add-countrycode', v.cc);
+                set('add-kakao-place-id', v.kakao_id); set('add-tmap-poi-id', v.tmap_poi_id);
                 set('add-resolved', '1');
                 document.getElementById('add-note').textContent = v.note || '';
                 if (!v.name) venueInput.focus();
@@ -434,6 +438,8 @@
                     <input type="hidden" id="edit-venue-id-${fsqId}" value="">
                     <input type="hidden" id="edit-country-${fsqId}" value="${item.COUNTRY || ''}">
                     <input type="hidden" id="edit-countrycode-${fsqId}" value="${item.COUNTRYCODE || ''}">
+                    <input type="hidden" id="edit-kakao-place-id-${fsqId}" value="">
+                    <input type="hidden" id="edit-tmap-poi-id-${fsqId}" value="">
                 </td>
                 <td style="white-space:nowrap;">
                     <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')" title="저장"><i class="fa-solid fa-check"></i></button>
@@ -471,7 +477,9 @@
                 fsq_unixtime: item.FSQ_UNIXTIME,
                 fsq_venueid: document.getElementById(`edit-venue-id-${fsqId}`).value,
                 country: document.getElementById(`edit-country-${fsqId}`).value,
-                countrycode: document.getElementById(`edit-countrycode-${fsqId}`).value
+                countrycode: document.getElementById(`edit-countrycode-${fsqId}`).value,
+                kakao_place_id: document.getElementById(`edit-kakao-place-id-${fsqId}`).value,
+                tmap_poi_id: document.getElementById(`edit-tmap-poi-id-${fsqId}`).value
             };
             const res = await fetch(`/api/manage/update/${fsqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const result = await res.json();
@@ -624,6 +632,8 @@
                 fsq_venueid: document.getElementById('add-venue-id').value,
                 country: document.getElementById('add-country').value,
                 countrycode: document.getElementById('add-countrycode').value,
+                kakao_place_id: document.getElementById('add-kakao-place-id').value,
+                tmap_poi_id: document.getElementById('add-tmap-poi-id').value,
                 resolved: document.getElementById('add-resolved').value === '1'
             };
             if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }

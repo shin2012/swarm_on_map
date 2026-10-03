@@ -366,6 +366,8 @@
                 <input type="hidden" id="a-venue-id">
                 <input type="hidden" id="a-country">
                 <input type="hidden" id="a-countrycode">
+                <input type="hidden" id="a-kakao-place-id">
+                <input type="hidden" id="a-tmap-poi-id">
                 <input type="hidden" id="a-resolved">
                 <div id="a-venue-results" class="ac-results"></div>
             </div>
@@ -992,6 +994,8 @@ async function submitAdd() {
         fsq_venueid: document.getElementById('a-venue-id').value,
         country: document.getElementById('a-country').value,
         countrycode: document.getElementById('a-countrycode').value,
+        kakao_place_id: document.getElementById('a-kakao-place-id').value,
+        tmap_poi_id: document.getElementById('a-tmap-poi-id').value,
         resolved: document.getElementById('a-resolved').value === '1'
     };
     if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }
@@ -1006,7 +1010,7 @@ async function submitAdd() {
         if (result.success) {
             alert('체크인이 추가되었습니다!\n' + (result.address || '') + '\n캘린더에는 1분 안에 올라갑니다.');
             ['a-venue', 'a-venue-sub', 'a-category', 'a-address', 'a-shout',
-             'a-venue-only', 'a-venue-id', 'a-country', 'a-countrycode', 'a-lat', 'a-lng', 'a-resolved'].forEach(id => setVal(id, ''));
+             'a-venue-only', 'a-venue-id', 'a-country', 'a-countrycode', 'a-kakao-place-id', 'a-tmap-poi-id', 'a-lat', 'a-lng', 'a-resolved'].forEach(id => setVal(id, ''));
             const n = document.getElementById('a-note'); if (n) n.textContent = '';
             setVal('a-offset', 540);
             fetchData();
@@ -1119,6 +1123,8 @@ function applyVenue(v) {
     setVal('a-venue-id', v.venue_id || '');
     setVal('a-country', v.country || '');
     setVal('a-countrycode', v.cc || '');
+    setVal('a-kakao-place-id', v.kakao_id || '');
+    setVal('a-tmap-poi-id', v.tmap_poi_id || '');
     setVal('a-resolved', '1');
     const n = document.getElementById('a-note');
     if (n) n.textContent = v.note || '';

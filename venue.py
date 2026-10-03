@@ -26,6 +26,7 @@ import requests
 MANUAL_VENUE = "Manual_Venue__"
 KAKAO_VENUE = "Kakao_"
 _get_conn = None
+_TMAP_KEY = os.getenv("TMAP_APP_KEY", "")
 
 
 def init(get_conn):
@@ -73,6 +74,50 @@ def _fsq(params):
         return r.json().get("response", {}).get("venues", [])
     except Exception:
         return []
+
+
+def _tmap_pois(lat, lng, name=""):
+    """TMAP POI 통합 검색: 좌표 + 이름으로 가장 가까운 POI ID 반환."""
+    if not _TMAP_KEY:
+        return []
+    try:
+        params = {"version": "1", "appKey": _TMAP_KEY, "searchtypCd": "R",
+                  "radius": "1", "centerLon": str(lng), "centerLat": str(lat),
+                  "reqCoordType": "WGS84GEO", "resCoordType": "WGS84GEO",
+                  "count": "5"}
+        if name:
+            params["searchKeyword"] = name
+        else:
+            return []
+        r = requests.get("https://apis.openapi.sk.com/tmap/pois", params=params, timeout=6)
+        if r.status_code != 200:
+            return []
+        pois = r.json().get("searchPoiInfo", {}).get("pois", {}).get("poi", [])
+        result = []
+        for p in pois:
+            try:
+                pl = float(p.get("noorLat", 0))
+                pg = float(p.get("noorLon", 0))
+            except (TypeError, ValueError):
+                continue
+            m = round(haversine_km((float(lat), float(lng)), (pl, pg)) * 1000)
+            result.append({"id": p.get("id", ""), "name": p.get("name", ""),
+                           "lat": pl, "lng": pg, "m": m,
+                           "address": p.get("upperAddrName", "") + " " + p.get("middleAddrName", "") + " " + p.get("roadName", "") + " " + p.get("firstBuildNo", ""),
+                           "category": p.get("upperBizName", "")})
+        result.sort(key=lambda x: x["m"])
+        return result
+    except Exception:
+        return []
+
+
+def _tmap_best(lat, lng, name):
+    """이름과 좌표로 가장 잘 맞는 TMAP POI ID. 200m 안 + 이름 유사."""
+    pois = _tmap_pois(lat, lng, name)
+    for p in pois:
+        if p["m"] <= 200 and _similar(p["name"], name) >= 0.5:
+            return p["id"]
+    return ""
 
 
 @lru_cache(maxsize=256)
@@ -475,8 +520,19 @@ def _resolve(c):
 
 
 def resolve(c):
-    """고른 후보 → 저장할 값 {source, venue_id, name, sub, category, lat, lng, address, city, country, cc, note}."""
+    """고른 후보 → 저장할 값 {source, venue_id, name, sub, category, lat, lng, address, city, country, cc, note, kakao_id, tmap_poi_id}."""
     r = _resolve(c)
+    # 카카오 ID: 후보에 kakao_id가 있으면 그대로, Kakao_ venue_id에서 추출, 또는 합쳐진 kakao_id
+    kakao_id = c.get("kakao_id") or ""
+    if not kakao_id and r.get("venue_id", "").startswith(KAKAO_VENUE):
+        kakao_id = r["venue_id"][len(KAKAO_VENUE):]
+    r["kakao_id"] = kakao_id
+    # TMAP POI ID: 이름+좌표로 매칭 (한국만)
+    name_full = r["name"] + (" " + r["sub"] if r.get("sub") else "")
+    if in_korea(r["lat"], r["lng"]) and name_full.strip():
+        r["tmap_poi_id"] = _tmap_best(r["lat"], r["lng"], name_full)
+    else:
+        r["tmap_poi_id"] = ""
     before = r["address"]
     if (r["cc"] and r["cc"] != "KR") or not in_korea(r["lat"], r["lng"]):
         if r["source"] != "manual" and len(re.sub(r"\b[\d-]{4,}\b", "", before.replace(r["country"] or "@", "")).strip()) < 4:

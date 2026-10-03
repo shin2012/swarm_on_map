@@ -498,12 +498,16 @@ def add_checkin():
         # 람다가 설명을 SHOUT + PHOTO 로 만들어서 PHOTO 가 NULL 이면 그 줄에서 멈춤 → '' 로 넣음
         query = """
             INSERT INTO FSQ_Swarm (FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET, VENUE, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, 
-             COUNTRY, COUNTRYCODE, CITY, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, PHOTO, GCal_EventID, MODIFIED, FSQ_VENUEID, FSQ_ISMAYER, FSQ_ISPRIVATE, CALENDAR_SENT)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '', NULL, NOW(), %s, 'N', 'N', 'N')
+             COUNTRY, COUNTRYCODE, CITY, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, PHOTO, GCal_EventID, MODIFIED, FSQ_VENUEID, FSQ_ISMAYER, FSQ_ISPRIVATE, CALENDAR_SENT,
+             KAKAO_PLACE_ID, TMAP_POI_ID)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '', NULL, NOW(), %s, 'N', 'N', 'N', %s, %s)
         """
+        kakao_place_id = (data.get('kakao_place_id') or '')[:20] or None
+        tmap_poi_id = (data.get('tmap_poi_id') or '')[:20] or None
         cursor.execute(query, (fsq_id, unixtime, offset, data['venue_only'], data.get('venue_sub', ''), data.get('category', ''),
             f"{float(data['lat']):.7f}", f"{float(data['lng']):.7f}", place['address'][:255],
-            place['country'], place['countrycode'], place['city'], time_local, time_kst, time_utc, data.get('shout', ''), venue_id[:24]))
+            place['country'], place['countrycode'], place['city'], time_local, time_kst, time_utc, data.get('shout', ''), venue_id[:24],
+            kakao_place_id, tmap_poi_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -531,14 +535,19 @@ def update_checkin(fsq_id):
                         AND IFNULL(CITY,'') <> '', CITY, %s),
                 VENUE=%s, VENUE_SUB=%s, CATEGORY=%s, LAT=%s, LNG=%s, ADDRESS=%s, 
                 TIME_LOCAL=%s, TIME_KST=%s, TIME_UTC=%s, FSQ_TIMEZONEOFFSET=%s, SHOUT=%s, FSQ_UNIXTIME=%s, MODIFIED=NOW(),
-                COUNTRY=%s, COUNTRYCODE=%s, FSQ_VENUEID=COALESCE(NULLIF(%s, ''), FSQ_VENUEID)
+                COUNTRY=%s, COUNTRYCODE=%s, FSQ_VENUEID=COALESCE(NULLIF(%s, ''), FSQ_VENUEID),
+                KAKAO_PLACE_ID=COALESCE(NULLIF(%s, ''), KAKAO_PLACE_ID),
+                TMAP_POI_ID=COALESCE(NULLIF(%s, ''), TMAP_POI_ID)
             WHERE FSQ_ID=%s
         """
+        kakao_place_id = (data.get('kakao_place_id') or '')[:20]
+        tmap_poi_id = (data.get('tmap_poi_id') or '')[:20]
         # 도시: 위치가 그대로면 기존 값(포스퀘어 값) 유지, 옮겼으면 새 위치 기준
         cursor.execute(query, (float(data['lat']), float(data['lng']), place['city'] or None,
             data['venue_only'], data.get('venue_sub', ''), data.get('category', ''), data['lat'], data['lng'], place['address'][:255],
             time_local, time_kst, time_utc, offset, data.get('shout', ''), unixtime,
-            place['country'], place['countrycode'], (data.get('fsq_venueid') or '')[:24], fsq_id))
+            place['country'], place['countrycode'], (data.get('fsq_venueid') or '')[:24],
+            kakao_place_id, tmap_poi_id, fsq_id))
         conn.commit()
         cursor.close()
         conn.close()
