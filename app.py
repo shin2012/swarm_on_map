@@ -159,6 +159,139 @@ def setup_db_and_workers():
     t = threading.Thread(target=geocode_worker, daemon=True)
     t.start()
 
+    # Place ID worker: KAKAO_PLACE_ID, TMAP_POI_ID 가 NULL 인 한국 행을 찾아 자동 매칭
+    def placeid_worker():
+        if os.environ.get('WERKZEUG_RUN_MAIN') != 'true' and app.debug:
+            return
+
+        import math
+        from difflib import SequenceMatcher
+        import re
+
+        kakao_key = os.getenv("KAKAO_REST_KEY", "")
+        tmap_key = os.getenv("TMAP_APP_KEY", "")
+        if not kakao_key and not tmap_key:
+            log("PlaceID worker: KAKAO_REST_KEY, TMAP_APP_KEY 둘 다 없어 종료")
+            return
+
+        def _hav(a, b):
+            la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+            h = math.sin((la2-la1)/2)**2 + math.cos(la1)*math.cos(la2)*math.sin((lo2-lo1)/2)**2
+            return 6371000 * 2 * math.asin(math.sqrt(h))
+
+        def _norm(name):
+            n = re.sub(r"\(.*?\)|\[.*?\]", "", name or "").strip()
+            parts = n.split()
+            if len(parts) > 1 and re.search(r"(점|지점|호점)$", parts[-1]):
+                parts = parts[:-1]
+            return re.sub(r"[·\-_/.,&']", "", "".join(parts)).lower()
+
+        def _sim(a, b):
+            na, nb = _norm(a), _norm(b)
+            if not na or not nb: return 0.0
+            if na == nb or (len(min(na, nb, key=len)) >= 3 and (na in nb or nb in na)): return 1.0
+            return SequenceMatcher(None, na, nb).ratio()
+
+        def _kakao(name, lat, lng):
+            if not kakao_key: return ""
+            try:
+                r = requests.get("https://dapi.kakao.com/v2/local/search/keyword.json",
+                    params={"query": name, "x": lng, "y": lat, "radius": 300, "sort": "distance", "size": 5},
+                    headers={"Authorization": f"KakaoAK {kakao_key}"}, timeout=6)
+                if r.status_code != 200: return ""
+                for doc in r.json().get("documents", []):
+                    if _hav((lat, lng), (float(doc["y"]), float(doc["x"]))) <= 300 and _sim(doc["place_name"], name) >= 0.5:
+                        return doc.get("id", "")
+            except Exception: pass
+            return ""
+
+        def _tmap(name, lat, lng):
+            if not tmap_key: return ""
+            try:
+                r = requests.get("https://apis.openapi.sk.com/tmap/pois",
+                    params={"version": "1", "appKey": tmap_key, "searchKeyword": name,
+                            "searchtypCd": "R", "radius": "1", "centerLon": str(lng), "centerLat": str(lat),
+                            "reqCoordType": "WGS84GEO", "resCoordType": "WGS84GEO", "count": "5"}, timeout=6)
+                if r.status_code != 200: return ""
+                for p in r.json().get("searchPoiInfo", {}).get("pois", {}).get("poi", []):
+                    try: pl, pg = float(p.get("noorLat", 0)), float(p.get("noorLon", 0))
+                    except (TypeError, ValueError): continue
+                    if _hav((lat, lng), (pl, pg)) <= 300 and _sim(p.get("name", ""), name) >= 0.5:
+                        return p.get("id", "")
+            except Exception: pass
+            return ""
+
+        # 시작 시 30초 대기 (geocode_worker 와 동시 시작 방지)
+        time.sleep(30)
+        log("PlaceID worker started")
+
+        while True:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+
+                # distinct venue 기준으로 하나 가져오기 (한국, 아직 둘 다 NULL)
+                cursor.execute("""
+                    SELECT FSQ_VENUEID, VENUE, VENUE_SUB, LAT, LNG
+                    FROM FSQ_Swarm
+                    WHERE COUNTRYCODE='KR' AND LAT != '' AND LNG != ''
+                      AND KAKAO_PLACE_ID IS NULL AND TMAP_POI_ID IS NULL
+                    GROUP BY FSQ_VENUEID
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+
+                if not row:
+                    cursor.close()
+                    conn.close()
+                    time.sleep(600)  # 다 채웠으면 10분마다 재확인
+                    continue
+
+                vid = row["FSQ_VENUEID"]
+                name = row["VENUE"] + (" " + row["VENUE_SUB"] if row["VENUE_SUB"] else "")
+                try:
+                    lat, lng = float(row["LAT"]), float(row["LNG"])
+                except (TypeError, ValueError):
+                    cursor.close()
+                    conn.close()
+                    continue
+
+                # 같은 venue_id 에 이미 채워진 행이 있는지 확인 (DB 복사 최적화)
+                cursor.execute("""
+                    SELECT KAKAO_PLACE_ID, TMAP_POI_ID FROM FSQ_Swarm
+                    WHERE FSQ_VENUEID=%s AND (KAKAO_PLACE_ID IS NOT NULL OR TMAP_POI_ID IS NOT NULL)
+                    LIMIT 1
+                """, (vid,))
+                existing = cursor.fetchone()
+
+                if existing:
+                    kid = existing["KAKAO_PLACE_ID"]
+                    tid = existing["TMAP_POI_ID"]
+                else:
+                    kid = _kakao(name, lat, lng)
+                    tid = _tmap(name, lat, lng)
+
+                # 업데이트 (매칭 못 해도 빈 문자열로 표시해서 다시 안 돌게)
+                cursor.execute("""
+                    UPDATE FSQ_Swarm SET KAKAO_PLACE_ID=%s, TMAP_POI_ID=%s
+                    WHERE FSQ_VENUEID=%s AND KAKAO_PLACE_ID IS NULL AND TMAP_POI_ID IS NULL
+                """, (kid or "", tid or "", vid))
+                conn.commit()
+
+                if kid or tid:
+                    log(f"PlaceID: {name[:25]} → kakao={kid} tmap={tid}")
+
+                cursor.close()
+                conn.close()
+                time.sleep(1.0)
+
+            except Exception as e:
+                log(f"PlaceID worker exception: {e}")
+                time.sleep(30)
+
+    t2 = threading.Thread(target=placeid_worker, daemon=True)
+    t2.start()
+
 # Initialize DB and worker on startup
 threading.Thread(target=setup_db_and_workers, daemon=True).start()
 
