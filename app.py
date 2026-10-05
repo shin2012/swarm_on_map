@@ -778,6 +778,14 @@ def carplay_event():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # 단축어 재시도 대비: 같은 이벤트·같은 시각(초 단위)이 이미 있으면 새로 넣지 않고 그 행을 돌려줌
+        cursor.execute('SELECT id FROM FSQ_CarPlay WHERE event_type=%s AND event_time=%s LIMIT 1', (event_type, event_time))
+        dup = cursor.fetchone()
+        if dup:
+            cursor.close()
+            conn.close()
+            dup_id = dup[0] if not isinstance(dup, dict) else dup['id']
+            return jsonify({'status': 'ok', 'id': dup_id, 'event': event_type, 'time': event_time, 'duplicate': True}), 200
         cursor.execute(
             'INSERT INTO FSQ_CarPlay (event_type, event_time, lat, lng, device) VALUES (%s, %s, %s, %s, %s)',
             (event_type, event_time, str(lat) if lat else None, str(lng) if lng else None, device or None)
