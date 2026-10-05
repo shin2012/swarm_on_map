@@ -742,6 +742,30 @@ def check_carplay_auth():
         return False
     return True
 
+def _parse_ts(s):
+    """단축어가 보내는 여러 날짜 형식 허용: ISO 8601(Z·+0900 포함), '2026. 10. 5. 오후 7:10:05' 같은 한국어 표기."""
+    import re
+    from dateutil import parser as _dp
+    s = s.strip()
+    try:
+        return datetime.fromisoformat(s.replace('Z', '+00:00'))
+    except ValueError:
+        pass
+    m = re.match(r'(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D*?(오전|오후|AM|PM)?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?', s, re.I)
+    if m:
+        y, mo, d, ap, h, mi, se = m.groups()
+        h = int(h)
+        if ap and ap.upper() in ('오후', 'PM') and h < 12:
+            h += 12
+        if ap and ap.upper() in ('오전', 'AM') and h == 12:
+            h = 0
+        return datetime(int(y), int(mo), int(d), h, int(mi), int(se or 0))
+    try:
+        return _dp.parse(s)
+    except Exception:
+        return None
+
+
 @app.route('/api/carplay/event', methods=['POST'])
 def carplay_event():
     if not check_carplay_auth():
@@ -757,11 +781,14 @@ def carplay_event():
 
     from datetime import timedelta
     ts_str = data.get('timestamp')
-    if ts_str:
-        try:
-            dt = datetime.fromisoformat(ts_str)
-        except ValueError:
-            return jsonify({'error': 'invalid timestamp format'}), 400
+    print(f"[carplay] raw body={json.dumps(data, ensure_ascii=False)[:500]}", flush=True)
+    if isinstance(ts_str, (int, float)) or (isinstance(ts_str, str) and ts_str.strip().isdigit()):
+        dt = datetime.fromtimestamp(float(ts_str), tz=timezone.utc)   # 유닉스 시각
+    elif ts_str:
+        dt = _parse_ts(str(ts_str))
+        if dt is None:
+            print(f"[carplay] invalid timestamp: {ts_str!r}", flush=True)
+            return jsonify({'error': 'invalid timestamp format', 'got': str(ts_str)[:100]}), 400
     else:
         dt = datetime.now(timezone(timedelta(hours=9)))
 
