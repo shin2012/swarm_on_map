@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<link rel="stylesheet" href="/static/ui.css?v=3">
+<link rel="stylesheet" href="/static/ui.css?v=4">
 <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
@@ -26,7 +26,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
 <script src="/static/venue-pick.js?v=1"></script>
-<script src="/static/si.js?v=3"></script>
+<script src="/static/si.js?v=4"></script>
 <script src="/static/playback.js?v=3"></script>
 </head>
 <body class="m-body">
@@ -170,11 +170,19 @@ function initMap() {
   map = L.map('map', { zoomControl: false }).setView([37.5665, 126.9780], 11);
   UI.baseMap(map);
   markers = L.markerClusterGroup({
-    maxClusterRadius: 50, showCoverageOnHover: false, chunkedLoading: true,
+    maxClusterRadius: 50, showCoverageOnHover: false, chunkedLoading: true, spiderfyOnMaxZoom: false, zoomToBoundsOnClick: false,
     iconCreateFunction: c => { const n = c.getChildCount(), s = n > 999 ? 44 : n > 99 ? 38 : 32;
       return L.divIcon({ className: '', html: `<div class="mk-cl" style="width:${s}px;height:${s}px">${n.toLocaleString()}</div>`, iconSize: [s, s] }); }
   });
   map.addLayer(markers);
+  markers.on('clusterclick', e => {
+    const b = e.layer.getBounds();
+    if (map.getZoom() < map.getMaxZoom() && !b.getNorthEast().equals(b.getSouthWest())) return e.layer.zoomToBounds({ padding: [40, 40] });
+    if (map.getZoom() < 17) return map.setView(e.layer.getLatLng(), 17);
+    const items = e.layer.getAllChildMarkers().map(m => m.item);
+    $('detail-body').innerHTML = SI.groupHTML(items);
+    $('detail-sheet-overlay').classList.add('active');
+  });
   // iOS 더블탭 확대
   let last = 0;
   map.getContainer().addEventListener('touchend', e => {

@@ -536,3 +536,6 @@ html[data-theme="board"] .mk-cl{position:absolute;left:50%;top:50%;transform:tra
 .m-head .ib{margin-right:-8px}
 
 html[data-theme="board"] .side-head{order:1} html[data-theme="board"] .years{order:2} html[data-theme="board"] .vlist{order:3}
+.pop-list{width:100%;border-collapse:collapse;margin-top:8px;font-family:var(--fnum);font-size:12.5px}
+.pop-list td{height:24px;border-top:1px dashed #D9D7D0}
+.pop-list td+td{text-align:right;font-weight:700}

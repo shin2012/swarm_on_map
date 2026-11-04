@@ -58,6 +58,17 @@
       <div class="pop-a"><span>이 장소 <b>${v.nth}</b>/${v.total}번째</span><span>·</span><span>전체 <b>${d.no.toLocaleString()}</b>번째 방문</span></div>`;
   };
 
+  // 같은 자리에 겹친 방문 묶음 (최근 것부터)
+  SI.groupHTML = function (items) {
+    items = items.slice().sort((a, b) => b.FSQ_UNIXTIME - a.FSQ_UNIXTIME);
+    const names = [...new Set(items.map(d => d.VENUE))];
+    const head = names.length === 1 ? esc(names[0]) : `${esc(names[0])} 외 ${names.length - 1}곳`;
+    return `<div class="pop-t">이 자리 방문 ${items.length.toLocaleString()}번</div><div class="pop-n">${head}</div>
+      <div class="pop-m">${esc(items[0].CATEGORY || '')}</div>
+      <table class="pop-list">${items.slice(0, 8).map(d => { const m = M(d.FSQ_UNIXTIME); return `<tr><td>${m.format('YYYY.MM.DD')} (${WD[m.day()]})</td><td>${m.format('HH:mm')}</td></tr>`; }).join('')}</table>
+      ${items.length > 8 ? `<div class="pop-a">그 전 ${(items.length - 8).toLocaleString()}번은 목록에서 볼 수 있어요</div>` : ''}`;
+  };
+
   // 재생 카드 채우기
   SI.fillNP = function (d, i, n) {
     const m = M(d.FSQ_UNIXTIME), v = SI.visitInfo(d), $ = id => document.getElementById(id);

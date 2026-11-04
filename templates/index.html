@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
-<link rel="stylesheet" href="/static/ui.css?v=3">
+<link rel="stylesheet" href="/static/ui.css?v=4">
 <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -21,7 +21,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/ko.min.js"></script>
-<script src="/static/si.js?v=3"></script>
+<script src="/static/si.js?v=4"></script>
 <script src="/static/playback.js?v=3"></script>
 </head>
 <body>
@@ -124,11 +124,18 @@ function initMap() {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   UI.baseMap(map);
   markers = L.markerClusterGroup({
-    maxClusterRadius: 48, showCoverageOnHover: false, chunkedLoading: true,
+    maxClusterRadius: 48, showCoverageOnHover: false, chunkedLoading: true, spiderfyOnMaxZoom: false, zoomToBoundsOnClick: false,
     iconCreateFunction: c => { const n = c.getChildCount(), s = n > 999 ? 46 : n > 99 ? 40 : 34;
       return L.divIcon({ className: '', html: `<div class="mk-cl" style="width:${s}px;height:${s}px">${n.toLocaleString()}</div>`, iconSize: [s, s] }); }
   });
   map.addLayer(markers);
+  // 같은 자리 수백 번 방문을 거미줄로 펼치면 못 알아봐서, 더 확대할 수 없으면 목록 말풍선으로
+  markers.on('clusterclick', e => {
+    const b = e.layer.getBounds();
+    if (map.getZoom() < map.getMaxZoom() && !b.getNorthEast().equals(b.getSouthWest())) return e.layer.zoomToBounds({ padding: [40, 40] });
+    if (map.getZoom() < 17) return map.setView(e.layer.getLatLng(), 17);
+    L.popup({ maxWidth: 300 }).setLatLng(e.layer.getLatLng()).setContent(SI.groupHTML(e.layer.getAllChildMarkers().map(m => m.item))).openOn(map);
+  });
   let me = null;
   map.on('locationfound', e => { if (me) map.removeLayer(me); me = L.marker(e.latlng, { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18] }) }).addTo(map); });
   map.on('locationerror', () => alert('현재 위치를 찾을 수 없어요.'));
@@ -207,8 +214,8 @@ $('list').addEventListener('click', e => {
   select(t, false);
   if (window.innerWidth <= 900) toggleSide(false);
   if (!m || (player && player.playing)) return;
-  if (isHeat) { map.setView(m.getLatLng(), 16); return; }
-  markers.zoomToShowLayer(m, () => m.openPopup());
+  map.setView(m.getLatLng(), Math.max(map.getZoom(), 17));
+  L.popup({ maxWidth: 300, offset: [0, -4] }).setLatLng(m.getLatLng()).setContent(SI.popupHTML(m.item)).openOn(map);
 });
 function select(t, scroll) {
   selT = t;
