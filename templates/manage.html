@@ -1,670 +1,320 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="diary">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Swarm Insights - 체크인 관리</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
-    <script src="/static/naver-base.js?v=2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
-    <script src="/static/venue-pick.js?v=1"></script>
-    <style>
-        :root {
-            --bg: #f5f5f7; --bg-card: #ffffff; --border: #d2d2d7; --text: #1d1d1f; --text-mute: #86868b; --secondary: #0071e3;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root { --bg: #1c1c1e; --bg-card: #2c2c2e; --border: #3a3a3c; --text: #f5f5f7; --text-mute: #8e8e93; }
-        }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; box-sizing: border-box; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 1.8em; font-weight: 800; }
-        .card { background: var(--bg-card); padding: 15px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; width: 100%; box-sizing: border-box; }
-        .card h3 { margin: 0 0 12px 0; font-size: 1.05em; color: var(--text-mute); }
-        
-        /* Layout Grid */
-        .manage-grid { display: flex; flex-direction: column; gap: 15px; }
-        
-        /* Horizontal Form Layout - Responsive Wrapping */
-        .form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; width: 100%; }
-        .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; position: relative; min-width: 150px; margin-bottom: 5px; }
-        .form-group.min-w { min-width: 80px; }
-        .form-group label { font-size: 0.75em; font-weight: 700; color: var(--text-mute); white-space: nowrap; }
-        .form-group input { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; font-size: 0.85em; }
-        .btn-primary { background: var(--secondary); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 0.85em; height: 34px; align-self: flex-end; margin-bottom: 5px; }
-        
-        /* Hover Map Trigger */
-        .location-group { position: relative; }
-        .hover-map-btn {
-            position: absolute; right: 5px; top: 50%; transform: translateY(-10%);
-            background: var(--bg-card); border: 1px solid var(--border); color: var(--secondary);
-            width: 24px; height: 24px; border-radius: 6px; display: none;
-            align-items: center; justify-content: center; cursor: pointer; z-index: 10;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .location-group:hover .hover-map-btn { display: flex; }
-        .hover-map-btn:hover { background: var(--secondary); color: white; }
-
-        /* Autocomplete */
-        .autocomplete-results { position: absolute; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 100%; z-index: 1000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); top: 100%; left: 0; max-height: 300px; overflow-y: auto; }
-        .result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid var(--border); }
-        .result-item:hover { background: var(--bg); }
-        .result-item .addr { font-size: 0.75em; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        /* Table Layout */
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.82em; }
-        th { color: var(--text-mute); font-weight: 600; background: var(--bg); }
-        .row-edit input { width: 100%; padding: 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85em; }
-        
-        /* Pagination */
-        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; }
-        .btn-nav { background: var(--bg-card); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; cursor: pointer; color: var(--text); font-size: 0.85em; }
-        .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        /* Icons for actions */
-        .btn-sm { padding: 5px 8px; border-radius: 6px; font-size: 0.9em; cursor: pointer; border: none; margin-right: 3px; display: inline-flex; align-items: center; justify-content: center; }
-        .btn-edit { background: #0071e3; color: white; }
-        .btn-delete { background: #ff3b30; color: white; }
-        .btn-save { background: #34c759; color: white; }
-        .btn-cancel { background: var(--text-mute); color: white; }
-        
-        /* Draggable Modal Style */
-        #map-modal {
-            display: none; position: fixed; top: 4vh; left: 50%; width: 520px; max-height: 92vh; 
-            transform: translateX(-50%);
-            background: var(--bg-card); z-index: 2000; 
-            border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); 
-            border: 1px solid var(--border);
-            flex-direction: column;
-            resize: both; overflow: auto;
-            min-width: 350px; min-height: 400px;
-        }
-        .modal-header { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 12px 15px; border-bottom: 1px solid var(--border);
-            cursor: move; background: var(--bg); border-radius: 20px 20px 0 0;
-        }
-        .close-modal { cursor: pointer; font-size: 1.2em; color: var(--text-mute); }
-        .modal-body { padding: 15px; flex: 1; display: flex; flex-direction: column; }
-        #mini-map { height: 300px; min-height: 240px; width: 100%; border-radius: 12px; border: 1px solid var(--border); flex: 0 0 auto; }
-        #map-cands.vp-box { max-height: 300px; }
-        
-        .search-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-        .search-row input { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 200px; font-size: 0.85em; }
-
-        input[type="datetime-local"] { cursor: pointer; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>기록 관리 — Swarm Insights</title>
+<script src="/static/ui.js?v=3"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="/static/ui.css?v=3">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
+<script src="/static/naver-base.js?v=2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+<script src="/static/venue-pick.js?v=1"></script>
+<script src="/static/si.js?v=3"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1><i class="fa-solid fa-list-check"></i> 체크인 관리</h1>
-            <a href="/" class="btn-primary" style="text-decoration:none; display: flex; align-items: center; gap: 5px; height: auto;"><i class="fa-solid fa-map"></i> 지도로 돌아가기</a>
-        </div>
+<header class="gnb">
+  <a class="gnb-brand" href="/"><span class="logo"><i data-lucide="map-pin"></i></span><b>Swarm Insights</b><small>기록 관리</small></a>
+  <div class="gnb-sp"></div>
+  <nav class="gnb-nav">
+    <a href="/"><i data-lucide="map"></i><span class="tx">지도</span></a>
+    <a href="/#stats"><i data-lucide="chart-no-axes-column"></i><span class="tx">통계</span></a>
+    <a href="/manage" class="on"><i data-lucide="pencil-line"></i><span class="tx">기록 관리</span></a>
+    <button class="only-ic" id="open-settings" title="설정" aria-label="설정"><i data-lucide="settings-2"></i></button>
+    <a href="javascript:void(0)" class="only-ic" onclick="tinyauthLogout()" data-ts-logout="1" title="로그아웃" aria-label="로그아웃"><i data-lucide="log-out"></i></a>
+  </nav>
+</header>
 
-        <div class="manage-grid">
-            <!-- Add Section -->
-            <div class="card">
-                <h3><i class="fa-solid fa-plus-circle"></i> 새 체크인 추가</h3>
-                <div class="form-row">
-                    <div class="form-group" style="flex: 1.5;">
-                        <label>장소명</label>
-                        <input type="text" id="add-venue" placeholder="검색/입력" autocomplete="off">
-                        <input type="hidden" id="add-venue-only">
-                        <input type="hidden" id="add-venue-id">
-                        <input type="hidden" id="add-country">
-                        <input type="hidden" id="add-countrycode">
-                        <input type="hidden" id="add-kakao-place-id">
-                        <input type="hidden" id="add-tmap-poi-id">
-                        <input type="hidden" id="add-resolved">
-                        <div id="venue-results" class="autocomplete-results"></div>
-                    </div>
-                    <div class="form-group min-w" style="flex: 0.6;"><label>지점</label><input type="text" id="add-venue-sub" placeholder="점"></div>
-                    <div class="form-group min-w" style="flex: 0.8;">
-                        <label>카테고리</label>
-                        <input type="text" id="add-category" autocomplete="off">
-                        <div id="category-results" class="autocomplete-results"></div>
-                    </div>
-                    <div class="form-group location-group" style="flex: 2;">
-                        <label>주소</label>
-                        <input type="text" id="add-address" placeholder="주소">
-                        <div class="hover-map-btn" title="지도에서 위치 선택" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
-                    <input type="hidden" id="add-lat">
-                    <input type="hidden" id="add-lng">
-                    <input type="hidden" id="add-offset" value="540">
-                    <div class="form-group" style="flex: 1.1; min-width: 160px;"><label>방문시간</label><input type="text" id="add-time" placeholder="날짜와 시간 선택"></div>
-                    <div class="form-group" style="flex: 1.5;"><label>내용 (Shout)</label><input type="text" id="add-shout"></div>
-                    <button class="btn-primary" onclick="submitAdd()">등록</button>
-                </div>
-                <div id="add-note" style="font-size:0.75em; color:var(--text-mute); margin-top:4px;"></div>
-            </div>
-
-            <!-- List Section -->
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <h3 style="margin:0;"><i class="fa-solid fa-history"></i> 체크인 히스토리</h3>
-                    <div class="search-row" style="position: relative; display: inline-flex; align-items: center;">
-                        <input type="text" id="list-search" placeholder="검색 (장소, 주소)..." style="padding-right: 25px;">
-                        <i class="fa-solid fa-circle-xmark" id="clear-search" style="position: absolute; right: 8px; cursor: pointer; color: var(--text-mute); display: none;" onclick="clearSearch()"></i>
-                    </div>
-                </div>
-                <div style="overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width:130px;">시간(L)</th>
-                                <th style="width:170px;">장소</th>
-                                <th style="width:110px;">카테고리</th>
-                                <th>주소</th>
-                                <th>내용</th>
-                                <th style="width:50px;">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody id="manage-list-body"></tbody>
-                    </table>
-                </div>
-                <div class="pagination">
-                </div>
-            </div>
-        </div>
+<main class="mg"><div class="mg-in">
+  <section class="mg-add">
+    <h2>새 기록</h2>
+    <div class="mg-form">
+      <div class="field">
+        <label for="add-venue">장소</label>
+        <input type="text" id="add-venue" placeholder="이름으로 찾기" autocomplete="off">
+        <input type="hidden" id="add-venue-only"><input type="hidden" id="add-venue-id"><input type="hidden" id="add-country"><input type="hidden" id="add-countrycode">
+        <input type="hidden" id="add-kakao-place-id"><input type="hidden" id="add-tmap-poi-id"><input type="hidden" id="add-resolved">
+        <div id="venue-results" class="ac"></div>
+      </div>
+      <div class="field"><label for="add-venue-sub">지점</label><input type="text" id="add-venue-sub" placeholder="예: 강남점"></div>
+      <div class="field">
+        <label for="add-category">분류</label>
+        <input type="text" id="add-category" autocomplete="off">
+        <div id="category-results" class="ac"></div>
+      </div>
+      <div class="field">
+        <label for="add-address">주소</label>
+        <input type="text" id="add-address" placeholder="지도 버튼으로 고르기" style="padding-right:34px">
+        <button class="loc-btn" type="button" title="지도에서 위치 고르기" onclick="openMapModal()"><i data-lucide="map-pinned"></i></button>
+      </div>
+      <input type="hidden" id="add-lat"><input type="hidden" id="add-lng"><input type="hidden" id="add-offset" value="540">
+      <div class="field"><label for="add-time">방문 시각</label><input type="text" id="add-time" placeholder="날짜와 시각"></div>
+      <div class="field"><label for="add-shout">메모</label><input type="text" id="add-shout" placeholder="한 줄 남기기"></div>
+      <button class="btn" onclick="submitAdd()"><i data-lucide="plus"></i>기록하기</button>
     </div>
+    <div class="mg-note" id="add-note"></div>
+  </section>
 
-    <!-- Draggable Map Modal -->
-    <div id="map-modal">
-        <div class="modal-header" id="map-modal-header">
-            <h3 style="margin:0; font-size: 0.95em;"><i class="fa-solid fa-map-location-dot"></i> 위치 선택</h3>
-            <i class="fa-solid fa-xmark close-modal" onclick="closeMapModal()"></i>
-        </div>
-        <div class="modal-body">
-            <div style="display:flex; gap:5px; margin-bottom:10px;">
-                <input type="text" id="map-search-input" placeholder="장소명 또는 주소 검색..." style="flex:1; padding:8px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size: 0.85em; outline:none;">
-                <button class="btn-primary" onclick="searchOnMap()" style="padding:0 15px; height:36px; margin-bottom: 0;"><i class="fa-solid fa-magnifying-glass"></i></button>
-            </div>
-            <div id="mini-map"></div>
-            <p id="map-hint" style="font-size:0.8em; color:var(--text-mute); margin-top:8px; margin-bottom: 0;">지도를 누르면 그 근처 장소(내 체크인 · 포스퀘어 · 카카오)를 보여줍니다. 고르면 주소까지 규칙대로 채워져요.</p>
-            <div id="map-cands"></div>
-        </div>
+  <section class="mg-list">
+    <div class="mg-head">
+      <h2>지난 기록 <small id="total" class="num" style="font-size:13px;color:var(--text-3);font-weight:600"></small></h2>
+      <label class="gnb-search"><i data-lucide="search"></i><input type="search" id="list-search" placeholder="장소·주소 찾기" autocomplete="off"><button class="ib" id="clear-search" onclick="clearSearch()" style="display:none;width:24px;height:24px" aria-label="지우기"><i data-lucide="x"></i></button></label>
     </div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th style="width:150px">방문 시각</th><th style="width:200px">장소</th><th style="width:130px">분류</th><th>주소</th><th>메모</th><th></th></tr></thead>
+        <tbody id="manage-list-body"></tbody>
+      </table>
+    </div>
+    <div class="pagination"></div>
+  </section>
+</div></main>
 
-    <script>
-        moment.locale('ko');
-        let currentPage = 1;
-        const limit = 20;
-        let totalRecords = 0;
-        let currentItems = [];
-        let map, marker;
+<div id="map-modal" class="dlg">
+  <div class="dlg-head" id="map-modal-header"><b>위치 고르기</b><button class="ib close-modal" onclick="closeMapModal()" aria-label="닫기"><i data-lucide="x"></i></button></div>
+  <div class="dlg-body">
+    <div class="dlg-row"><input type="text" class="inp" id="map-search-input" placeholder="장소 이름이나 주소"><button class="btn" onclick="searchOnMap()"><i data-lucide="search"></i>찾기</button></div>
+    <div id="mini-map"></div>
+    <p class="hint">지도를 누르면 그 근처 장소(내 기록 · 포스퀘어 · 카카오)가 나와요. 고르면 주소까지 채워져요.</p>
+    <div id="map-cands"></div>
+  </div>
+</div>
 
-        function initMap() {
-            map = L.map('mini-map').setView([37.5665, 126.9780], 13);
-            const CARTO_KEY = 'cb1_2mra_1_20f52391c4787f3b6ed18089';
-            const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>';
-            const baseTiles = L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`, { attribution: CARTO_ATTR }).addTo(map);
-            NaverBase.attach(map, { tiles: () => baseTiles, theme: 'light' });
-            
-            map.on('click', (e) => {
-                const lat = e.latlng.lat.toFixed(6);
-                const lng = e.latlng.lng.toFixed(6);
-                setCoords(lat, lng);
-            });
-            initDraggable(document.getElementById("map-modal"));
-        }
+<script>
+moment.locale('ko');
+const ic = UI.ic;
+let currentPage = 1, totalRecords = 0, currentItems = [];
+const limit = 20;
+let map, marker;
 
-        function openMapModal() {
-            const modal = document.getElementById('map-modal');
-            modal.style.display = 'flex';
-            setTimeout(() => map.invalidateSize(), 100);
-            
-            const editRow = document.querySelector('.row-edit');
-            let lat, lng;
-            if (editRow) {
-                const fsqId = editRow.id.replace('row-', '');
-                lat = document.getElementById(`edit-lat-${fsqId}`).value;
-                lng = document.getElementById(`edit-lng-${fsqId}`).value;
-            } else {
-                lat = document.getElementById('add-lat').value;
-                lng = document.getElementById('add-lng').value;
-            }
-            if (lat && lng) {
-                const pos = [parseFloat(lat), parseFloat(lng)];
-                map.setView(pos, 16);
-                if (marker) map.removeLayer(marker);
-                marker = L.marker(pos).addTo(map);
-            }
-        }
+function initMap() {
+  map = L.map('mini-map').setView([37.5665, 126.9780], 13);
+  UI.baseMap(map);
+  map.on('click', e => setCoords(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6)));
+  initDraggable(document.getElementById('map-modal'));
+}
+function openMapModal() {
+  document.getElementById('map-modal').style.display = 'flex';
+  setTimeout(() => map.invalidateSize(), 100);
+  const editRow = document.querySelector('.row-edit');
+  let lat, lng;
+  if (editRow) { const id = editRow.id.replace('row-', ''); lat = document.getElementById(`edit-lat-${id}`).value; lng = document.getElementById(`edit-lng-${id}`).value; }
+  else { lat = document.getElementById('add-lat').value; lng = document.getElementById('add-lng').value; }
+  if (lat && lng) { const p = [parseFloat(lat), parseFloat(lng)]; map.setView(p, 16); if (marker) map.removeLayer(marker); marker = L.marker(p).addTo(map); }
+}
+function closeMapModal() { document.getElementById('map-modal').style.display = 'none'; }
+function initDraggable(el) {
+  let x0 = 0, y0 = 0;
+  const h = document.getElementById(el.id + '-header');
+  h.onmousedown = e => {
+    if (e.target.closest('.close-modal')) return;
+    e.preventDefault(); x0 = e.clientX; y0 = e.clientY;
+    document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+    document.onmousemove = ev => { ev.preventDefault(); const dx = x0 - ev.clientX, dy = y0 - ev.clientY; x0 = ev.clientX; y0 = ev.clientY;
+      el.style.top = (el.offsetTop - dy) + 'px'; el.style.left = (el.offsetLeft - dx) + 'px'; el.style.transform = 'none'; };
+  };
+}
+function applyAddress(lat, lng, addr, raw) {
+  const editRow = document.querySelector('.row-edit');
+  if (editRow) {
+    const id = editRow.id.replace('row-', '');
+    document.getElementById(`edit-lat-${id}`).value = lat; document.getElementById(`edit-lng-${id}`).value = lng; document.getElementById(`edit-address-${id}`).value = addr;
+  } else {
+    document.getElementById('add-lat').value = lat; document.getElementById('add-lng').value = lng; document.getElementById('add-address').value = addr;
+    if (raw) {
+      const cc = (raw.country_code || '').toUpperCase();
+      document.getElementById('add-country').value = raw.country || ''; document.getElementById('add-countrycode').value = cc;
+      if (cc === 'KR') document.getElementById('add-offset').value = 540;
+    }
+  }
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lng]).addTo(map);
+}
+async function searchOnMap() {
+  const q = document.getElementById('map-search-input').value; if (!q) return;
+  const c = map.getCenter();
+  const all = await VenuePick.show(document.getElementById('map-cands'), c.lat.toFixed(6), c.lng.toFixed(6), q, pickVenue);
+  if (all && all.some(x => x.from !== 'addr')) return;
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1`);
+  const data = await res.json();
+  if (data && data.length) { const lat = parseFloat(data[0].lat).toFixed(6), lng = parseFloat(data[0].lon).toFixed(6); map.setView([lat, lng], 16); setCoords(lat, lng); }
+  else alert('위치를 찾을 수 없어요.');
+}
+document.getElementById('map-search-input').onkeypress = e => { if (e.key === 'Enter') searchOnMap(); };
+async function setCoords(lat, lng) {
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lng]).addTo(map);
+  VenuePick.show(document.getElementById('map-cands'), lat, lng, '', pickVenue);
+  const g = await VenuePick.geocode(lat, lng);
+  applyAddress(lat, lng, g ? g.address : '', g ? { country: g.country, country_code: g.cc } : null);
+}
+// 후보를 고르면 서버 규칙으로 정한 값으로 채움
+function pickVenue(v) {
+  const editRow = document.querySelector('.row-edit');
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; };
+  const lat = (+v.lat).toFixed(7), lng = (+v.lng).toFixed(7);
+  if (editRow) {
+    const id = editRow.id.replace('row-', '');
+    if (v.name) set(`edit-venue-${id}`, v.name);
+    set(`edit-venue-sub-${id}`, v.sub);
+    if (v.category) set(`edit-category-${id}`, v.category);
+    set(`edit-address-${id}`, v.address); set(`edit-lat-${id}`, lat); set(`edit-lng-${id}`, lng);
+    set(`edit-venue-id-${id}`, v.venue_id); set(`edit-country-${id}`, v.country); set(`edit-countrycode-${id}`, v.cc);
+    set(`edit-kakao-place-id-${id}`, v.kakao_id); set(`edit-tmap-poi-id-${id}`, v.tmap_poi_id);
+  } else {
+    venueInput.value = v.name || '';
+    set('add-venue-only', v.name); set('add-venue-sub', v.sub); set('add-category', v.category);
+    set('add-address', v.address); set('add-lat', lat); set('add-lng', lng);
+    set('add-venue-id', v.venue_id); set('add-country', v.country); set('add-countrycode', v.cc);
+    set('add-kakao-place-id', v.kakao_id); set('add-tmap-poi-id', v.tmap_poi_id); set('add-resolved', '1');
+    document.getElementById('add-note').textContent = v.note || '';
+    if (!v.name) venueInput.focus();
+  }
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([+v.lat, +v.lng]).addTo(map);
+  closeMapModal();
+}
 
-        function closeMapModal() {
-            document.getElementById('map-modal').style.display = 'none';
-        }
+async function fetchList() {
+  const q = document.getElementById('list-search').value;
+  const res = await fetch(`/api/manage/list?page=${currentPage}&limit=${limit}&q=${encodeURIComponent(q)}`);
+  const r = await res.json();
+  totalRecords = r.total; currentItems = r.data;
+  document.getElementById('total').textContent = totalRecords.toLocaleString() + '건';
+  renderList(currentItems); updatePagination();
+}
+const E = SI.esc;
+function renderList(data) {
+  const body = document.getElementById('manage-list-body');
+  body.innerHTML = data.length ? data.map(d => `<tr id="row-${E(d.FSQ_ID)}">
+      <td class="t">${moment(d.TIME_LOCAL).format('YY.MM.DD (dd) HH:mm')}</td>
+      <td class="v">${E(d.VENUE)}</td>
+      <td class="m">${E(d.CATEGORY || '–')}</td>
+      <td class="m">${E(d.ADDRESS || '–')}</td>
+      <td class="s">${E(d.SHOUT || '')}</td>
+      <td class="a"><button class="ib" onclick="startEdit('${E(d.FSQ_ID)}')" title="고치기" aria-label="고치기">${ic('pencil')}</button><button class="ib del" onclick="deleteCheckin('${E(d.FSQ_ID)}','${E(d.GCal_EventID || '')}')" title="지우기" aria-label="지우기">${ic('trash-2')}</button></td>
+    </tr>`).join('') : '<tr><td colspan="6" class="vempty">찾는 기록이 없어요</td></tr>';
+}
+function startEdit(id) {
+  if (document.querySelector('.row-edit')) renderList(currentItems);
+  const row = document.getElementById(`row-${id}`), it = currentItems.find(x => x.FSQ_ID === id);
+  row.classList.add('row-edit');
+  row.innerHTML = `
+    <td><input type="text" class="inp" id="edit-time-${id}" value="${E(it.TIME_LOCAL)}"></td>
+    <td><input type="text" class="inp" id="edit-venue-${id}" value="${E(it.VENUE_ONLY)}"><input type="text" class="inp" id="edit-venue-sub-${id}" value="${E(it.VENUE_SUB || '')}" placeholder="지점"></td>
+    <td><input type="text" class="inp" id="edit-category-${id}" value="${E(it.CATEGORY || '')}"></td>
+    <td><div class="field"><input type="text" class="inp" id="edit-address-${id}" value="${E(it.ADDRESS || '')}" style="padding-right:34px"><button class="loc-btn" type="button" onclick="openMapModal()" title="지도에서 고르기">${ic('map-pinned')}</button></div></td>
+    <td><input type="text" class="inp" id="edit-shout-${id}" value="${E(it.SHOUT || '')}">
+      <input type="hidden" id="edit-lat-${id}" value="${E(it.LAT)}"><input type="hidden" id="edit-lng-${id}" value="${E(it.LNG)}">
+      <input type="hidden" id="edit-offset-${id}" value="${E(it.FSQ_TIMEZONEOFFSET)}"><input type="hidden" id="edit-venue-id-${id}" value="">
+      <input type="hidden" id="edit-country-${id}" value="${E(it.COUNTRY || '')}"><input type="hidden" id="edit-countrycode-${id}" value="${E(it.COUNTRYCODE || '')}">
+      <input type="hidden" id="edit-kakao-place-id-${id}" value=""><input type="hidden" id="edit-tmap-poi-id-${id}" value=""></td>
+    <td class="a"><button class="ib ok" onclick="submitEdit('${E(id)}','${E(it.GCal_EventID || '')}')" title="저장" aria-label="저장">${ic('check')}</button><button class="ib" onclick="fetchList()" title="취소" aria-label="취소">${ic('x')}</button></td>`;
+  flatpickr(`#edit-time-${id}`, { enableTime: true, dateFormat: 'Y-m-d H:i', altInput: true, altFormat: 'Y-m-d (D) H:i', locale: 'ko', time_24hr: true, defaultDate: it.TIME_LOCAL, altInputClass: 'inp' });
+}
+async function submitEdit(id, gcalId) {
+  const it = currentItems.find(x => x.FSQ_ID === id), v = k => document.getElementById(`edit-${k}-${id}`).value;
+  const data = {
+    venue_only: v('venue'), venue_sub: v('venue-sub'), category: v('category'), address: v('address'), lat: v('lat'), lng: v('lng'), shout: v('shout'),
+    time_local: v('time') + ':00', timezone_offset: v('offset'), gcal_eventid: gcalId, fsq_unixtime: it.FSQ_UNIXTIME,
+    fsq_venueid: v('venue-id'), country: v('country'), countrycode: v('countrycode'), kakao_place_id: v('kakao-place-id'), tmap_poi_id: v('tmap-poi-id'),
+  };
+  const res = await fetch(`/api/manage/update/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const r = await res.json();
+  if (r.success) fetchList(); else alert('저장하지 못했어요: ' + r.error);
+}
+function updatePagination() {
+  const maxPage = Math.ceil(totalRecords / limit) || 1, p = document.querySelector('.pagination');
+  let s = Math.max(1, currentPage - 5), e = Math.min(maxPage, currentPage + 4);
+  if (e - s < 9) { if (s === 1) e = Math.min(maxPage, s + 9); else if (e === maxPage) s = Math.max(1, e - 9); }
+  let h = `<button class="pg" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">${ic('chevron-left')}이전</button>`;
+  for (let i = s; i <= e; i++) h += `<button class="pg${i === currentPage ? ' is-on' : ''}" onclick="goToPage(${i})">${i}</button>`;
+  h += `<button class="pg" ${currentPage >= maxPage ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">다음${ic('chevron-right')}</button>`;
+  p.innerHTML = h;
+}
+function goToPage(n) { if (n >= 1 && n <= (Math.ceil(totalRecords / limit) || 1)) { currentPage = n; fetchList(); } }
+let lt = null;
+document.getElementById('list-search').oninput = e => {
+  document.getElementById('clear-search').style.display = e.target.value ? 'inline-flex' : 'none';
+  currentPage = 1; clearTimeout(lt); lt = setTimeout(fetchList, 200);
+};
+function clearSearch() { document.getElementById('list-search').value = ''; document.getElementById('clear-search').style.display = 'none'; currentPage = 1; fetchList(); }
 
-        function initDraggable(el) {
-            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-            const header = document.getElementById(el.id + "-header");
-            if (header) {
-                header.onmousedown = dragMouseDown;
-            } else {
-                el.onmousedown = dragMouseDown;
-            }
-
-            function dragMouseDown(e) {
-                e = e || window.event;
-                if (e.target.classList.contains('close-modal')) return;
-                e.preventDefault();
-                pos3 = e.clientX;
-                pos4 = e.clientY;
-                document.onmouseup = closeDragElement;
-                document.onmousemove = elementDrag;
-            }
-
-            function elementDrag(e) {
-                e = e || window.event;
-                e.preventDefault();
-                pos1 = pos3 - e.clientX;
-                pos2 = pos4 - e.clientY;
-                pos3 = e.clientX;
-                pos4 = e.clientY;
-                el.style.top = (el.offsetTop - pos2) + "px";
-                el.style.left = (el.offsetLeft - pos1) + "px";
-                el.style.transform = "none";
-            }
-
-            function closeDragElement() {
-                document.onmouseup = null;
-                document.onmousemove = null;
-            }
-        }
-
-        function formatAddress(addr, fallback) {
-            if (!addr) return fallback || '';
-            const postcode = addr.postcode || '';
-            const country = addr.country || '';
-            const city = addr.city || addr.town || addr.village || addr.county || '';
-            
-            const restParts = [];
-            const parts = ['road', 'suburb', 'neighbourhood', 'quarter', 'city_district'];
-            parts.forEach(p => { if (addr[p]) restParts.push(addr[p]); });
-            if (addr.house_number && restParts.length > 0) restParts[0] = restParts[0] + ' ' + addr.house_number;
-            else if (addr.house_number) restParts.push(addr.house_number);
-
-            const rest = restParts.join(' ');
-            return [postcode, country, city, rest].filter(x => x).join(' ').trim();
-        }
-
-        function applyAddress(lat, lng, formattedAddr, rawAddr) {
-            const editRow = document.querySelector('.row-edit');
-            const isEdit = !!editRow;
-            
-            if (isEdit) {
-                const fsqId = editRow.id.replace('row-', '');
-                document.getElementById(`edit-lat-${fsqId}`).value = lat;
-                document.getElementById(`edit-lng-${fsqId}`).value = lng;
-                document.getElementById(`edit-address-${fsqId}`).value = formattedAddr;
-            } else {
-                document.getElementById('add-lat').value = lat;
-                document.getElementById('add-lng').value = lng;
-                document.getElementById('add-address').value = formattedAddr;
-                
-                if (rawAddr) {
-                    const country = rawAddr.country || '';
-                    const countryCode = (rawAddr.country_code || '').toUpperCase();
-                    document.getElementById('add-country').value = country;
-                    document.getElementById('add-countrycode').value = countryCode;
-                    if (countryCode === 'KR') document.getElementById('add-offset').value = 540;
-                }
-            }
-
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([lat, lng]).addTo(map);
-        }
-
-        async function searchOnMap() {
-            const q = document.getElementById('map-search-input').value;
-            if (!q) return;
-            // 1) 지도 중심 근처에서 이름으로 (내 체크인 · 포스퀘어 · 카카오)
-            const c = map.getCenter();
-            const all = await VenuePick.show(document.getElementById('map-cands'), c.lat.toFixed(6), c.lng.toFixed(6), q, pickVenue);
-            if (all && all.some(x => x.from !== 'addr')) return;
-            // 2) 없으면 위치 검색 (OpenStreetMap) 후 그 근처 후보
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1`);
-            const data = await res.json();
-            if (data && data.length > 0) {
-                const lat = parseFloat(data[0].lat).toFixed(6);
-                const lng = parseFloat(data[0].lon).toFixed(6);
-                map.setView([lat, lng], 16);
-                setCoords(lat, lng);
-            } else {
-                alert('위치를 찾을 수 없습니다.');
-            }
-        }
-
-        document.getElementById('map-search-input').onkeypress = (e) => {
-            if (e.key === 'Enter') searchOnMap();
-        };
-
-        async function setCoords(lat, lng) {
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([lat, lng]).addTo(map);
-            VenuePick.show(document.getElementById('map-cands'), lat, lng, '', pickVenue);
-            const g = await VenuePick.geocode(lat, lng);   // 한국 카카오, 해외 OpenStreetMap
-            applyAddress(lat, lng, g ? g.address : '', g ? { country: g.country, country_code: g.cc } : null);
-        }
-
-        // 후보를 고르면: 장소명·지점·분류·좌표·주소·장소 ID·국가를 서버가 정한 값으로 채움
-        function pickVenue(v) {
-            const editRow = document.querySelector('.row-edit');
-            const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; };
-            const lat = (+v.lat).toFixed(7), lng = (+v.lng).toFixed(7);
-            if (editRow) {
-                const id = editRow.id.replace('row-', '');
-                if (v.name) set(`edit-venue-${id}`, v.name);
-                set(`edit-venue-sub-${id}`, v.sub);
-                if (v.category) set(`edit-category-${id}`, v.category);
-                set(`edit-address-${id}`, v.address); set(`edit-lat-${id}`, lat); set(`edit-lng-${id}`, lng);
-                set(`edit-venue-id-${id}`, v.venue_id); set(`edit-country-${id}`, v.country); set(`edit-countrycode-${id}`, v.cc);
-                set(`edit-kakao-place-id-${id}`, v.kakao_id); set(`edit-tmap-poi-id-${id}`, v.tmap_poi_id);
-            } else {
-                venueInput.value = v.name || '';
-                set('add-venue-only', v.name); set('add-venue-sub', v.sub); set('add-category', v.category);
-                set('add-address', v.address); set('add-lat', lat); set('add-lng', lng);
-                set('add-venue-id', v.venue_id); set('add-country', v.country); set('add-countrycode', v.cc);
-                set('add-kakao-place-id', v.kakao_id); set('add-tmap-poi-id', v.tmap_poi_id);
-                set('add-resolved', '1');
-                document.getElementById('add-note').textContent = v.note || '';
-                if (!v.name) venueInput.focus();
-            }
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([+v.lat, +v.lng]).addTo(map);
-            closeMapModal();
-        }
-
-        async function fetchList() {
-            const q = document.getElementById('list-search').value;
-            const res = await fetch(`/api/manage/list?page=${currentPage}&limit=${limit}&q=${encodeURIComponent(q)}`);
-            const result = await res.json();
-            totalRecords = result.total;
-            currentItems = result.data;
-            renderList(currentItems);
-            updatePagination();
-        }
-
-        function renderList(data) {
-            const body = document.getElementById('manage-list-body');
-            body.innerHTML = '';
-            data.forEach(d => {
-                const tr = document.createElement('tr');
-                tr.id = `row-${d.FSQ_ID}`;
-                tr.innerHTML = `
-                    <td>${moment(d.TIME_LOCAL).format('YY-MM-DD (dd) HH:mm')}</td>
-                    <td><b>${d.VENUE}</b></td>
-                    <td>${d.CATEGORY || '-'}</td>
-                    <td><span style="font-size:0.85em">${d.ADDRESS || '-'}</span></td>
-                    <td><span style="font-size:0.85em">${d.SHOUT || ''}</span></td>
-                    <td style="white-space:nowrap;">
-                        <button class="btn-sm btn-edit" onclick="startEdit('${d.FSQ_ID}')" title="수정"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button class="btn-sm btn-delete" onclick="deleteCheckin('${d.FSQ_ID}', '${d.GCal_EventID || ''}')" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
-                    </td>
-                `;
-                body.appendChild(tr);
-            });
-        }
-
-        function startEdit(fsqId) {
-            if (document.querySelector('.row-edit')) {
-                renderList(currentItems);
-            }
-            const row = document.getElementById(`row-${fsqId}`);
-            const item = currentItems.find(x => x.FSQ_ID === fsqId);
-            
-            row.classList.add('row-edit');
-            row.innerHTML = `
-                <td><input type="text" id="edit-time-${fsqId}" value="${item.TIME_LOCAL}"></td>
-                <td><input type="text" id="edit-venue-${fsqId}" value="${item.VENUE_ONLY}"><br><input type="text" id="edit-venue-sub-${fsqId}" value="${item.VENUE_SUB || ''}" placeholder="지점명"></td>
-                <td><input type="text" id="edit-category-${fsqId}" value="${item.CATEGORY || ''}"></td>
-                <td>
-                    <div class="location-group">
-                        <input type="text" id="edit-address-${fsqId}" value="${item.ADDRESS || ''}">
-                        <div class="hover-map-btn" onclick="openMapModal()"><i class="fa-solid fa-map-location-dot"></i></div>
-                    </div>
-                </td>
-                <td>
-                    <input type="text" id="edit-shout-${fsqId}" value="${item.SHOUT || ''}">
-                    <input type="hidden" id="edit-lat-${fsqId}" value="${item.LAT}">
-                    <input type="hidden" id="edit-lng-${fsqId}" value="${item.LNG}">
-                    <input type="hidden" id="edit-offset-${fsqId}" value="${item.FSQ_TIMEZONEOFFSET}">
-                    <input type="hidden" id="edit-venue-id-${fsqId}" value="">
-                    <input type="hidden" id="edit-country-${fsqId}" value="${item.COUNTRY || ''}">
-                    <input type="hidden" id="edit-countrycode-${fsqId}" value="${item.COUNTRYCODE || ''}">
-                    <input type="hidden" id="edit-kakao-place-id-${fsqId}" value="">
-                    <input type="hidden" id="edit-tmap-poi-id-${fsqId}" value="">
-                </td>
-                <td style="white-space:nowrap;">
-                    <button class="btn-sm btn-save" onclick="submitEdit('${fsqId}', '${item.GCal_EventID || ''}')" title="저장"><i class="fa-solid fa-check"></i></button>
-                    <button class="btn-sm btn-cancel" onclick="fetchList()" title="취소"><i class="fa-solid fa-xmark"></i></button>
-                </td>
-            `;
-            flatpickr(`#edit-time-${fsqId}`, {
-                enableTime: true,
-                dateFormat: "Y-m-d H:i",
-                altInput: true,
-                altFormat: "Y-m-d (D) H:i",
-                locale: "ko",
-                time_24hr: true,
-                defaultDate: item.TIME_LOCAL
-            });
-        }
-
-        async function submitEdit(fsqId, gcalId) {
-            const item = currentItems.find(x => x.FSQ_ID === fsqId);
-            const timeVal = document.getElementById(`edit-time-${fsqId}`).value;
-            // The value is already in YYYY-MM-DD HH:mm format from Flatpickr's dateFormat
-            const parsedTime = timeVal + ":00"; 
-
-            const data = {
-                venue_only: document.getElementById(`edit-venue-${fsqId}`).value,
-                venue_sub: document.getElementById(`edit-venue-sub-${fsqId}`).value,
-                category: document.getElementById(`edit-category-${fsqId}`).value,
-                address: document.getElementById(`edit-address-${fsqId}`).value,
-                lat: document.getElementById(`edit-lat-${fsqId}`).value,
-                lng: document.getElementById(`edit-lng-${fsqId}`).value,
-                shout: document.getElementById(`edit-shout-${fsqId}`).value,
-                time_local: parsedTime,
-                timezone_offset: document.getElementById(`edit-offset-${fsqId}`).value,
-                gcal_eventid: gcalId,
-                fsq_unixtime: item.FSQ_UNIXTIME,
-                fsq_venueid: document.getElementById(`edit-venue-id-${fsqId}`).value,
-                country: document.getElementById(`edit-country-${fsqId}`).value,
-                countrycode: document.getElementById(`edit-countrycode-${fsqId}`).value,
-                kakao_place_id: document.getElementById(`edit-kakao-place-id-${fsqId}`).value,
-                tmap_poi_id: document.getElementById(`edit-tmap-poi-id-${fsqId}`).value
-            };
-            const res = await fetch(`/api/manage/update/${fsqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            const result = await res.json();
-            if (result.success) { fetchList(); } else { alert('에러: ' + result.error); }
-        }
-
-        function updatePagination() {
-            const maxPage = Math.ceil(totalRecords / limit) || 1;
-            const pagination = document.querySelector('.pagination');
-            pagination.innerHTML = '';
-            
-            let startPage = Math.max(1, currentPage - 5);
-            let endPage = Math.min(maxPage, currentPage + 4);
-            
-            if (endPage - startPage < 9) {
-                if (startPage === 1) endPage = Math.min(maxPage, startPage + 9);
-                else if (endPage === maxPage) startPage = Math.max(1, endPage - 9);
-            }
-
-            const prevBtn = document.createElement('button');
-            prevBtn.className = 'btn-nav';
-            prevBtn.disabled = currentPage === 1;
-            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i> 이전';
-            prevBtn.onclick = () => goToPage(currentPage - 1);
-            pagination.appendChild(prevBtn);
-
-            for (let i = startPage; i <= endPage; i++) {
-                const pageBtn = document.createElement('button');
-                pageBtn.className = 'btn-nav';
-                if (i === currentPage) {
-                    pageBtn.style.background = 'var(--secondary)';
-                    pageBtn.style.color = 'white';
-                }
-                pageBtn.innerText = i;
-                pageBtn.onclick = () => goToPage(i);
-                pagination.appendChild(pageBtn);
-            }
-
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'btn-nav';
-            nextBtn.disabled = currentPage >= maxPage;
-            nextBtn.innerHTML = '다음 <i class="fa-solid fa-chevron-right"></i>';
-            nextBtn.onclick = () => goToPage(currentPage + 1);
-            pagination.appendChild(nextBtn);
-        }
-
-        function goToPage(page) {
-            if (page >= 1 && page <= (Math.ceil(totalRecords / limit) || 1)) {
-                currentPage = page;
-                fetchList();
-            }
-        }
-
-        document.getElementById('list-search').oninput = (e) => {
-            document.getElementById('clear-search').style.display = e.target.value ? 'block' : 'none';
-            currentPage = 1;
-            fetchList();
-        };
-
-        function clearSearch() {
-            document.getElementById('list-search').value = '';
-            document.getElementById('clear-search').style.display = 'none';
-            currentPage = 1;
-            fetchList();
-        }
-
-        const venueInput = document.getElementById('add-venue');
-        const venueResults = document.getElementById('venue-results');
-        const categoryInput = document.getElementById('add-category');
-        const categoryResults = document.getElementById('category-results');
-
-        // Venue Autocomplete
-        venueInput.oninput = async (e) => {
-            const q = e.target.value;
-            if (q.length < 2) { venueResults.style.display = 'none'; return; }
-            const res = await fetch(`/api/manage/venues?q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            if (data.length > 0) {
-                venueResults.innerHTML = '';
-                data.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'result-item';
-                    div.innerHTML = `<div><b>${item.DISPLAY_NAME}</b></div><div class="addr">${item.ADDRESS || ''}</div>`;
-                    div.onclick = async () => {
-                        if (item.FSQ_VENUEID && item.LAT) {
-                            const v = await VenuePick.resolve({ from: 'swarm', venue_id: item.FSQ_VENUEID, name: item.VENUE, sub: item.VENUE_SUB || '', lat: item.LAT, lng: item.LNG });
-                            if (v) { venueResults.style.display = 'none'; pickVenue(v); return; }
-                        }
-                        venueInput.value = item.VENUE; // Base venue name only
-                        document.getElementById('add-venue-only').value = item.VENUE;
-                        document.getElementById('add-venue-sub').value = item.VENUE_SUB || '';
-                        document.getElementById('add-category').value = item.CATEGORY || '';
-                        document.getElementById('add-address').value = item.ADDRESS || '';
-                        document.getElementById('add-lat').value = item.LAT || '';
-                        document.getElementById('add-lng').value = item.LNG || '';
-                        document.getElementById('add-offset').value = item.FSQ_TIMEZONEOFFSET || 540;
-                        document.getElementById('add-venue-id').value = item.FSQ_VENUEID || '';
-                        document.getElementById('add-country').value = item.COUNTRY || '';
-                        document.getElementById('add-countrycode').value = item.COUNTRYCODE || '';
-                        venueResults.style.display = 'none';
-                    };
-                    venueResults.appendChild(div);
-                });
-                venueResults.style.display = 'block';
-            } else { venueResults.style.display = 'none'; }
-        };
-
-        // Category Autocomplete
-        categoryInput.oninput = async (e) => {
-            const q = e.target.value;
-            const res = await fetch(`/api/manage/categories?q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            if (data.length > 0) {
-                categoryResults.innerHTML = '';
-                data.forEach(cat => {
-                    const div = document.createElement('div');
-                    div.className = 'result-item';
-                    div.innerHTML = `<div>${cat}</div>`;
-                    div.onclick = () => {
-                        categoryInput.value = cat;
-                        categoryResults.style.display = 'none';
-                    };
-                    categoryResults.appendChild(div);
-                });
-                categoryResults.style.display = 'block';
-            } else { categoryResults.style.display = 'none'; }
-        };
-
-        // Close results on outside click
-        document.addEventListener('click', (e) => {
-            if (!venueInput.contains(e.target) && !venueResults.contains(e.target)) venueResults.style.display = 'none';
-            if (!categoryInput.contains(e.target) && !categoryResults.contains(e.target)) categoryResults.style.display = 'none';
-        });
-
-        async function submitAdd() {
-            const timeLocal = document.getElementById('add-time').value.replace('T', ' ');
-            if (!venueInput.value || !timeLocal) { alert('장소명과 방문시간은 필수입니다.'); return; }
-            let venueOnly = document.getElementById('add-venue-only').value;
-            if (!venueOnly) venueOnly = venueInput.value;
-            const data = {
-                venue_only: venueOnly,
-                venue_sub: document.getElementById('add-venue-sub').value,
-                category: document.getElementById('add-category').value,
-                address: document.getElementById('add-address').value,
-                lat: document.getElementById('add-lat').value,
-                lng: document.getElementById('add-lng').value,
-                shout: document.getElementById('add-shout').value,
-                time_local: timeLocal,
-                timezone_offset: document.getElementById('add-offset').value,
-                fsq_venueid: document.getElementById('add-venue-id').value,
-                country: document.getElementById('add-country').value,
-                countrycode: document.getElementById('add-countrycode').value,
-                kakao_place_id: document.getElementById('add-kakao-place-id').value,
-                tmap_poi_id: document.getElementById('add-tmap-poi-id').value,
-                resolved: document.getElementById('add-resolved').value === '1'
-            };
-            if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }
-            const res = await fetch('/api/manage/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            const result = await res.json();
-            if (result.success) { alert('추가되었습니다.\n' + (result.address || '') + '\n캘린더에는 1분 안에 올라갑니다.'); location.reload(); } else { alert('에러: ' + result.error); }
-        }
-
-        async function deleteCheckin(fsqId, gcalId) {
-            if (!confirm('정말 삭제하시겠습니까? Swarm 및 구글 캘린더에서도 삭제됩니다.')) return;
-            const res = await fetch(`/api/manage/delete/${fsqId}?gcal_id=${gcalId}`, { method: 'DELETE' });
-            const result = await res.json();
-            if (result.success) { fetchList(); } else { alert('에러: ' + result.error); }
-        }
-
-        window.onload = () => { 
-            initMap(); 
-            fetchList(); 
-            flatpickr('#add-time', {
-                enableTime: true,
-                dateFormat: "Y-m-d H:i",
-                altInput: true,
-                altFormat: "Y-m-d (D) H:i",
-                locale: "ko",
-                time_24hr: true,
-                defaultDate: new Date()
-            });
-        };
-    </script>
+const venueInput = document.getElementById('add-venue'), venueResults = document.getElementById('venue-results');
+const categoryInput = document.getElementById('add-category'), categoryResults = document.getElementById('category-results');
+venueInput.oninput = async e => {
+  const q = e.target.value;
+  if (q.length < 2) { venueResults.style.display = 'none'; return; }
+  const data = await (await fetch(`/api/manage/venues?q=${encodeURIComponent(q)}`)).json();
+  if (!data.length) { venueResults.style.display = 'none'; return; }
+  venueResults.innerHTML = '';
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `<div><b>${E(item.DISPLAY_NAME)}</b></div><div class="addr">${E(item.ADDRESS || '')}</div>`;
+    div.onclick = async () => {
+      if (item.FSQ_VENUEID && item.LAT) {
+        const v = await VenuePick.resolve({ from: 'swarm', venue_id: item.FSQ_VENUEID, name: item.VENUE, sub: item.VENUE_SUB || '', lat: item.LAT, lng: item.LNG });
+        if (v) { venueResults.style.display = 'none'; pickVenue(v); return; }
+      }
+      venueInput.value = item.VENUE;
+      const set = (id, val) => document.getElementById(id).value = val;
+      set('add-venue-only', item.VENUE); set('add-venue-sub', item.VENUE_SUB || ''); set('add-category', item.CATEGORY || '');
+      set('add-address', item.ADDRESS || ''); set('add-lat', item.LAT || ''); set('add-lng', item.LNG || ''); set('add-offset', item.FSQ_TIMEZONEOFFSET || 540);
+      set('add-venue-id', item.FSQ_VENUEID || ''); set('add-country', item.COUNTRY || ''); set('add-countrycode', item.COUNTRYCODE || '');
+      venueResults.style.display = 'none';
+    };
+    venueResults.appendChild(div);
+  });
+  venueResults.style.display = 'block';
+};
+categoryInput.oninput = async e => {
+  const data = await (await fetch(`/api/manage/categories?q=${encodeURIComponent(e.target.value)}`)).json();
+  if (!data.length) { categoryResults.style.display = 'none'; return; }
+  categoryResults.innerHTML = '';
+  data.forEach(cat => { const d = document.createElement('div'); d.className = 'result-item'; d.textContent = cat; d.onclick = () => { categoryInput.value = cat; categoryResults.style.display = 'none'; }; categoryResults.appendChild(d); });
+  categoryResults.style.display = 'block';
+};
+document.addEventListener('click', e => {
+  if (!venueInput.contains(e.target) && !venueResults.contains(e.target)) venueResults.style.display = 'none';
+  if (!categoryInput.contains(e.target) && !categoryResults.contains(e.target)) categoryResults.style.display = 'none';
+});
+async function submitAdd() {
+  const timeLocal = document.getElementById('add-time').value.replace('T', ' ');
+  if (!venueInput.value || !timeLocal) { alert('장소와 방문 시각은 꼭 넣어 주세요.'); return; }
+  const g = id => document.getElementById(id).value;
+  const data = {
+    venue_only: g('add-venue-only') || venueInput.value, venue_sub: g('add-venue-sub'), category: g('add-category'), address: g('add-address'),
+    lat: g('add-lat'), lng: g('add-lng'), shout: g('add-shout'), time_local: timeLocal, timezone_offset: g('add-offset'),
+    fsq_venueid: g('add-venue-id'), country: g('add-country'), countrycode: g('add-countrycode'),
+    kakao_place_id: g('add-kakao-place-id'), tmap_poi_id: g('add-tmap-poi-id'), resolved: g('add-resolved') === '1',
+  };
+  if (!data.lat || !data.lng) { alert('위치를 정해 주세요 (주소 옆 지도 버튼).'); return; }
+  const r = await (await fetch('/api/manage/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json();
+  if (r.success) { alert('기록했어요.\n' + (r.address || '') + '\n캘린더에는 1분 안에 올라가요.'); location.reload(); } else alert('기록하지 못했어요: ' + r.error);
+}
+async function deleteCheckin(id, gcalId) {
+  if (!confirm('이 기록을 지울까요? Swarm과 구글 캘린더에서도 지워져요.')) return;
+  const r = await (await fetch(`/api/manage/delete/${id}?gcal_id=${gcalId}`, { method: 'DELETE' })).json();
+  if (r.success) fetchList(); else alert('지우지 못했어요: ' + r.error);
+}
+document.getElementById('open-settings').onclick = () => UI.openSettings();
+window.onload = () => {
+  UI.icons(); initMap(); fetchList();
+  flatpickr('#add-time', { enableTime: true, dateFormat: 'Y-m-d H:i', altInput: true, altFormat: 'Y-m-d (D) H:i', locale: 'ko', time_24hr: true, defaultDate: new Date() });
+};
+function tinyauthLogout() {
+  fetch('https://auth.b-612.kr/api/user/logout', { method: 'POST', credentials: 'include' }).finally(() => { window.location.href = 'https://auth.b-612.kr/login'; });
+}
+</script>
+<script src="/static/ts.js" defer></script>
 </body>
 </html>
