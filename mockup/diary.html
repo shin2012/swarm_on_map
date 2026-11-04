@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>시안 ① 공책 다이어리 — Swarm Insights</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>window.NAVER_MAP_KEY_ID = "__NAVER__";</script>
+<script src="/static/naver-base.js?v=2"></script>
+<style>
+:root{
+  --paper:#FBFBF7; --paper-2:#F3F3EC; --rule:#CFDCEC; --rule-strong:#A9BFDA;
+  --margin:#E0574F; --ink:#1D2742; --ink-2:#4E5870; --pencil:#8A90A0;
+  --hl:#FFEB6B; --hl-soft:rgba(255,235,107,.55);
+  --tab-1:#F4B8A8; --tab-2:#B9D7C4; --tab-3:#BFD0EE; --tab-4:#F2D79B;
+  --line:28px;
+  --ff:"Pretendard Variable",Pretendard,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);font-family:var(--ff);-webkit-font-smoothing:antialiased;font-feature-settings:"tnum"}
+::selection{background:var(--hl);color:var(--ink)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.lucide{width:18px;height:18px;stroke-width:1.75}
+
+/* ── 상단: 공책 머리줄 ── */
+.gnb{height:56px;display:flex;align-items:center;gap:20px;padding:0 20px 0 0;border-bottom:2px solid var(--ink);background:var(--paper);position:relative;z-index:1100}
+.gnb .brand{width:380px;flex-shrink:0;display:flex;align-items:baseline;gap:10px;padding-left:76px;position:relative;height:100%;align-items:center}
+.gnb .brand::before{content:"";position:absolute;left:64px;top:0;bottom:-2px;width:1.5px;background:var(--margin)}
+.brand b{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.brand span{font-size:12px;color:var(--pencil);font-weight:500}
+.gnb .range{font-size:13px;color:var(--ink-2);font-weight:600;letter-spacing:.01em}
+.gnb .range em{font-style:normal;color:var(--ink);font-weight:750;background:linear-gradient(transparent 55%,var(--hl) 55%);padding:0 2px}
+.gnb .sp{flex:1}
+.search{display:flex;align-items:center;gap:8px;width:260px;border-bottom:1.5px solid var(--rule-strong);height:32px;color:var(--pencil)}
+.search input{border:0;background:none;outline:none;font:inherit;font-size:14px;color:var(--ink);flex:1}
+.search input::placeholder{color:var(--pencil)}
+.search:focus-within{border-color:var(--ink);color:var(--ink)}
+.gnb nav{display:flex;gap:2px}
+.gnb nav a{display:flex;align-items:center;gap:6px;height:34px;padding:0 10px;font-size:14px;font-weight:650;color:var(--ink-2);text-decoration:none;border-radius:4px}
+.gnb nav a:hover{color:var(--ink);background:var(--paper-2)}
+.gnb nav a.on{color:var(--ink);background:linear-gradient(transparent 58%,var(--hl) 58%)}
+
+/* ── 본문 ── */
+.wrap{display:flex;height:calc(100% - 56px)}
+.note{width:380px;flex-shrink:0;position:relative;display:flex;flex-direction:column;border-right:1.5px solid var(--ink);background:var(--paper)}
+.note-head{height:var(--line);margin-top:14px;display:flex;align-items:center;justify-content:space-between;padding:0 18px 0 76px;font-size:12px;color:var(--pencil);font-weight:600}
+.note-head b{color:var(--ink);font-size:13px}
+.pages{flex:1;overflow-y:auto;position:relative;
+  background:
+    linear-gradient(90deg,transparent 63px,var(--margin) 63px,var(--margin) 64.5px,transparent 64.5px),
+    repeating-linear-gradient(180deg,transparent 0,transparent calc(var(--line) - 1px),var(--rule) calc(var(--line) - 1px),var(--rule) var(--line));
+  background-attachment:local;scrollbar-width:thin;scrollbar-color:var(--rule-strong) transparent}
+.day{padding-top:var(--line)}
+.day h3{height:var(--line);line-height:var(--line);padding-left:76px;font-size:15px;font-weight:800;letter-spacing:-.01em;display:flex;gap:8px;align-items:baseline}
+.day h3 small{font-size:12px;color:var(--pencil);font-weight:600}
+.v{display:grid;grid-template-columns:64px 1fr auto;min-height:calc(var(--line)*2);cursor:pointer;position:relative}
+.v .t{font-size:12px;color:var(--margin);font-weight:700;line-height:var(--line);text-align:right;padding-right:10px}
+.v .b{padding-left:12px;min-width:0}
+.v .n{line-height:var(--line);font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v .m{line-height:var(--line);font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v .m i{font-style:normal;color:var(--pencil)}
+.v .no{line-height:var(--line);font-size:11px;color:var(--pencil);padding:0 16px 0 8px;font-weight:600}
+.v.shout{min-height:calc(var(--line)*3)}
+.v .s{line-height:var(--line);font-size:13px;color:var(--ink);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v:hover .n{text-decoration:underline;text-decoration-color:var(--rule-strong);text-underline-offset:4px}
+.v.sel .n span{background:linear-gradient(100deg,transparent 0 2%,var(--hl-soft) 3% 97%,transparent 98%);padding:2px 3px;margin:-2px -3px}
+
+/* 연도 인덱스 탭 (다이어리 옆면) */
+.tabs{position:absolute;right:-30px;top:40px;display:flex;flex-direction:column;gap:3px;z-index:1050}
+.tabs button{width:30px;height:46px;border-radius:0 6px 6px 0;font-size:11px;font-weight:800;color:var(--ink);writing-mode:vertical-rl;letter-spacing:.04em;border:1.5px solid var(--ink);border-left:0;box-shadow:1px 1px 0 rgba(29,39,66,.12)}
+.tabs button:nth-child(4n+1){background:var(--tab-1)} .tabs button:nth-child(4n+2){background:var(--tab-2)}
+.tabs button:nth-child(4n+3){background:var(--tab-3)} .tabs button:nth-child(4n){background:var(--tab-4)}
+.tabs button.on{width:38px;margin-right:-8px}
+
+/* 지도 */
+.mapbox{flex:1;position:relative}
+#map{position:absolute;inset:0;background:var(--paper-2)}
+.leaflet-container{font-family:var(--ff)}
+.leaflet-control-attribution{background:rgba(251,251,247,.8)!important;font-size:10px}
+.ck{display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--paper);border:2px solid var(--ink);color:var(--ink);font-weight:800;font-size:12px;box-shadow:0 2px 6px rgba(29,39,66,.18)}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--margin);border:2.5px solid var(--paper);box-shadow:0 0 0 1.5px var(--ink),0 2px 4px rgba(0,0,0,.2)}
+.dot.sel{background:var(--hl);width:20px;height:20px}
+
+/* 재생·기간: 종이 자 */
+.ruler{position:absolute;left:24px;right:24px;bottom:22px;z-index:1000;background:var(--paper);border:1.5px solid var(--ink);border-radius:6px;box-shadow:0 8px 24px rgba(29,39,66,.16);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;padding:12px 18px 12px 12px}
+.play{width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center}
+.play svg{width:20px;height:20px;fill:currentColor}
+.track{position:relative;height:46px}
+.track .now{position:absolute;top:0;left:0;right:24px;display:flex;justify-content:space-between;font-size:12.5px;font-weight:650;color:var(--ink-2)}
+.track .now b{color:var(--ink);font-weight:800}
+.scale{position:absolute;left:0;right:0;bottom:0;height:22px;
+  background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px calc(100%/192)),
+             repeating-linear-gradient(90deg,var(--ink) 0 1.5px,transparent 1.5px calc(100%/16));
+  background-size:100% 6px,100% 12px;background-repeat:no-repeat;background-position:0 0,0 0;border-top:1.5px solid var(--ink)}
+.scale .yr{position:absolute;top:13px;font-size:10px;font-weight:700;color:var(--pencil);transform:translateX(-50%)}
+.mark{position:absolute;bottom:4px;height:18px;background:var(--hl-soft);mix-blend-mode:multiply;border-radius:2px}
+.mark::before,.mark::after{content:"";position:absolute;top:-4px;bottom:-4px;width:4px;border-radius:2px;background:var(--ink)}
+.mark::before{left:-2px}.mark::after{right:-2px}
+.pen{position:absolute;bottom:22px;width:2px;height:22px;background:var(--margin)}
+.pen::after{content:"";position:absolute;top:-6px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--margin)}
+.periods{display:flex;gap:2px;font-size:13px;font-weight:700}
+.periods button{height:30px;padding:0 9px;border-radius:4px;color:var(--ink-2)}
+.periods button.on{color:var(--ink);background:linear-gradient(transparent 55%,var(--hl) 55%)}
+.speed{font-size:12px;color:var(--pencil);font-weight:650;margin-left:8px;border-left:1px solid var(--rule-strong);padding-left:10px}
+
+/* 재생 중 쪽지 */
+.slip{position:absolute;top:18px;left:50%;transform:translateX(-50%) rotate(-1deg);z-index:1000;background:var(--paper);border:1.5px solid var(--ink);padding:10px 16px 10px 14px;border-radius:3px;box-shadow:0 6px 16px rgba(29,39,66,.15);display:flex;gap:14px;align-items:center;max-width:460px}
+.slip::before{content:"";position:absolute;top:-9px;left:50%;width:56px;height:16px;margin-left:-28px;background:rgba(191,208,238,.75);transform:rotate(2deg)}
+.slip .d{font-size:12px;font-weight:800;color:var(--margin);line-height:1.25;text-align:right;border-right:1.5px solid var(--margin);padding-right:12px}
+.slip .w b{display:block;font-size:16px;font-weight:800}
+.slip .w span{font-size:12.5px;color:var(--ink-2)}
+
+.fab{position:absolute;right:20px;top:18px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.fab button{width:40px;height:40px;border-radius:6px;background:var(--paper);border:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(29,39,66,.12)}
+.fab button.on{background:var(--hl)}
+
+/* ── 모바일 ── */
+.mnav{display:none}
+@media (max-width:768px){
+  .gnb{height:52px;padding:0 12px 0 0;gap:10px}
+  .gnb .brand{width:auto;padding-left:56px}
+  .gnb .brand::before{left:44px}
+  .gnb .brand span,.gnb .range,.gnb nav{display:none}
+  .search{width:auto;flex:1;min-width:0}
+  .search input{min-width:0}
+  .wrap{display:block;height:calc(100% - 52px);position:relative}
+  .mapbox{position:absolute;inset:0}
+  .note{position:absolute;left:0;right:0;bottom:0;height:46%;width:auto;border-right:0;border-top:1.5px solid var(--ink);z-index:1010;border-radius:10px 10px 0 0;box-shadow:0 -8px 24px rgba(29,39,66,.14);padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .note::before{content:"";position:absolute;top:6px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:var(--rule-strong)}
+  .note-head{padding-left:56px;margin-top:12px}
+  .pages{background:
+    linear-gradient(90deg,transparent 43px,var(--margin) 43px,var(--margin) 44.5px,transparent 44.5px),
+    repeating-linear-gradient(180deg,transparent 0,transparent calc(var(--line) - 1px),var(--rule) calc(var(--line) - 1px),var(--rule) var(--line));background-attachment:local}
+  .day h3{padding-left:56px}
+  .v{grid-template-columns:44px 1fr auto}
+  .v .t{font-size:11px;padding-right:6px}
+  .tabs{right:0;left:0;top:-34px;flex-direction:row;gap:2px;padding:6px 12px 0;margin-top:-6px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex-shrink:0}
+  .tabs button{writing-mode:horizontal-tb;width:44px;height:28px;border-radius:6px 6px 0 0;border:1.5px solid var(--ink);border-bottom:0;font-size:11px}
+  .tabs button.on{width:44px;margin:0;height:34px;margin-top:-6px}
+  .ruler{left:10px;right:10px;bottom:calc(46% + 46px);grid-template-columns:auto 1fr;gap:12px;padding:10px 12px 10px 10px}
+  .ruler .periods{display:none}
+  .play{width:38px;height:38px}
+  .slip{top:12px;max-width:calc(100% - 80px);left:12px;transform:rotate(-1deg)}
+  .fab{right:10px;top:12px}
+  .mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1200;background:var(--paper);border-top:2px solid var(--ink);padding-bottom:env(safe-area-inset-bottom);height:calc(60px + env(safe-area-inset-bottom))}
+  .mnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;color:var(--pencil);text-decoration:none}
+  .mnav a.on{color:var(--ink)}
+  .mnav a.on span{background:linear-gradient(transparent 50%,var(--hl) 50%);padding:0 3px}
+  .mnav svg.lucide{width:21px;height:21px}
+}
+</style>
+</head>
+<body>
+<header class="gnb">
+  <div class="brand"><b>Swarm Insights</b><span>방문 일지</span></div>
+  <div class="range">기록 <em id="r-all">2010.07.15 — 2026.11.04</em></div>
+  <div class="sp"></div>
+  <label class="search"><i data-lucide="search"></i><input placeholder="장소·분류 찾기"></label>
+  <nav>
+    <a class="on" href="#"><i data-lucide="map"></i>지도</a>
+    <a href="#"><i data-lucide="chart-no-axes-column"></i>통계</a>
+    <a href="#"><i data-lucide="pencil-line"></i>기록 관리</a>
+    <a href="#" title="로그아웃"><i data-lucide="log-out"></i></a>
+  </nav>
+</header>
+<div class="wrap">
+  <aside class="note">
+    <div class="tabs" id="tabs"></div>
+    <div class="note-head"><span>최근 방문</span><b id="cnt"></b></div>
+    <div class="pages" id="pages"></div>
+  </aside>
+  <section class="mapbox">
+    <div id="map"></div>
+    <div class="slip" id="slip"><div class="d" id="slip-d"></div><div class="w"><b id="slip-n"></b><span id="slip-m"></span></div></div>
+    <div class="fab"><button title="내 위치"><i data-lucide="locate-fixed"></i></button><button title="히트맵"><i data-lucide="flame"></i></button></div>
+    <div class="ruler">
+      <button class="play" title="이동 경로 재생"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+      <div class="track">
+        <div class="now"><span><b id="t-from"></b> 부터 <b id="t-to"></b> 까지</span><span id="t-n"></span></div>
+        <div class="scale" id="scale"></div>
+        <div class="mark" id="mark"></div>
+        <div class="pen" id="pen"></div>
+      </div>
+      <div class="periods"><button>1주</button><button>1개월</button><button class="on">3개월</button><button>1년</button><button>전체</button><span class="speed">보통</span></div>
+    </div>
+  </section>
+</div>
+<nav class="mnav">
+  <a class="on" href="#"><i data-lucide="map"></i><span>지도</span></a>
+  <a href="#"><i data-lucide="notebook-text"></i><span>기록</span></a>
+  <a href="#"><i data-lucide="pencil-line"></i><span>추가</span></a>
+  <a href="#"><i data-lucide="chart-no-axes-column"></i><span>통계</span></a>
+</nav>
+<script>
+const K=t=>new Date(t*1000+9*3600000);
+lucide.createIcons();
+const WD = ['일','월','화','수','목','금','토'];
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getUTCFullYear()}.${pad(d.getUTCMonth()+1)}.${pad(d.getUTCDate())}`;
+(async () => {
+  const raw = await (await fetch('/api/data')).json();
+  const all = raw.map((d,i) => ({...d, t:+d.FSQ_UNIXTIME, lat:+d.LAT, lng:+d.LNG})).filter(d => d.t>0 && !isNaN(d.lat)).sort((a,b)=>a.t-b.t);
+  all.forEach((d,i)=>d.no=i+1);
+  const last = all[all.length-1].t, first = all[0].t, from = last - 90*86400;
+  const sel = all.filter(d => d.t >= from);
+  document.getElementById('r-all').textContent = `${ymd(K(first))} — ${ymd(K(last))}`;
+  document.getElementById('cnt').textContent = `${sel.length.toLocaleString()}번 방문 · 3개월`;
+  document.getElementById('t-from').textContent = ymd(K(from));
+  document.getElementById('t-to').textContent = ymd(K(last));
+  document.getElementById('t-n').textContent = `${sel.length}번 방문`;
+
+  // 연도 탭
+  const years = [...new Set(all.map(d => K(d.t).getUTCFullYear()))];
+  const tabs = document.getElementById('tabs');
+  years.slice(-9).reverse().forEach((y,i) => { const b=document.createElement('button'); b.textContent=y; if(i===0)b.className='on'; tabs.appendChild(b); });
+
+  // 줄노트 목록
+  const pages = document.getElementById('pages');
+  let html='', cur='';
+  const recent = sel.slice(-60).reverse();
+  recent.forEach((d,i) => {
+    const dt = K(d.t), key = ymd(dt);
+    if (key !== cur) { if (cur) html += '</div>'; cur = key; html += `<div class="day"><h3>${dt.getUTCMonth()+1}월 ${dt.getUTCDate()}일 <small>${WD[dt.getUTCDay()]}요일 · ${dt.getUTCFullYear()}</small></h3>`; }
+    const gu = (d.ADDRESS||'').split(' ').find(w => /(구|시|군)$/.test(w) && !/특별시|광역시/.test(w)) || d.CITY || '';
+    html += `<div class="v${d.SHOUT?' shout':''}${i===2?' sel':''}"><div class="t">${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}</div>
+      <div class="b"><div class="n"><span>${d.VENUE}</span></div><div class="m">${d.CATEGORY||'분류 없음'} <i>· ${gu}</i></div>${d.SHOUT?`<div class="s">“${d.SHOUT}”</div>`:''}</div>
+      <div class="no">${d.no.toLocaleString()}번째</div></div>`;
+  });
+  pages.innerHTML = html + '</div>';
+
+  // 자 눈금 (연도)
+  const scale = document.getElementById('scale');
+  const span = last - first;
+  years.forEach(y => { const t = (Date.UTC(y,0,1)/1000-9*3600); if (t<first) return; const s=document.createElement('span'); s.className='yr'; s.style.left = ((t-first)/span*100)+'%'; s.textContent = "'"+String(y).slice(2); scale.appendChild(s); });
+  const mark = document.getElementById('mark'); mark.style.left = ((from-first)/span*100)+'%'; mark.style.right='0';
+  const pv = recent[2]; const pen = document.getElementById('pen'); pen.style.left = ((pv.t-first)/span*100)+'%';
+
+  // 쪽지 (재생 중 현재 방문)
+  const pd = K(pv.t);
+  document.getElementById('slip-d').innerHTML = `${pd.getUTCMonth()+1}.${pd.getUTCDate()}<br>${pad(pd.getUTCHours())}:${pad(pd.getUTCMinutes())}`;
+  document.getElementById('slip-n').textContent = pv.VENUE;
+  document.getElementById('slip-m').textContent = `${pv.CATEGORY} · ${pv.no.toLocaleString()}번째 방문`;
+
+  // 지도
+  const map = L.map('map',{zoomControl:false}).setView([pv.lat,pv.lng],12);
+  const tiles = L.tileLayer('https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2mra_1_20f52391c4787f3b6ed18089',{attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+  NaverBase.attach(map,{tiles:()=>tiles});
+  const cl = L.markerClusterGroup({maxClusterRadius:48,showCoverageOnHover:false,iconCreateFunction:c=>{const n=c.getChildCount(),s=n>999?46:n>99?40:34;return L.divIcon({className:'',html:`<div class="ck" style="width:${s}px;height:${s}px">${n.toLocaleString()}</div>`,iconSize:[s,s]});}});
+  sel.forEach(d => cl.addLayer(L.marker([d.lat,d.lng],{icon:L.divIcon({className:'',html:`<div class="dot${d===pv?' sel':''}"></div>`,iconSize:[14,14]})})));
+  map.addLayer(cl);
+  // 재생 경로: 펜 선
+  const path = recent.slice(0,8).reverse().map(d=>[d.lat,d.lng]);
+  L.polyline(path,{color:'#E0574F',weight:2.5,dashArray:'1 6',lineCap:'round'}).addTo(map);
+  L.polyline(path.slice(-3),{color:'#1D2742',weight:3}).addTo(map);
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

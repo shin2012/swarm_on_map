@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>시안 ③ 탑승권·출발 안내판 — Swarm Insights</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>window.NAVER_MAP_KEY_ID = "__NAVER__";</script>
+<script src="/static/naver-base.js?v=2"></script>
+<style>
+:root{
+  --board:#111317; --board-2:#1A1D23; --board-line:#2A2E36; --amber:#FFC23D; --amber-dim:#B58A2C;
+  --white:#F1F1EC; --gray:#8C929C; --gray-2:#5C626C;
+  --paper:#FFFFFF; --paper-2:#F4F3EF; --ink:#15171B; --ink-2:#5B606A; --hair:#D9D7D0;
+  --ff:"Pretendard Variable",Pretendard,-apple-system,sans-serif;
+  --fm:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--board);color:var(--white);font-family:var(--ff);-webkit-font-smoothing:antialiased}
+::selection{background:var(--amber);color:var(--board)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.lucide{width:18px;height:18px;stroke-width:1.75}
+.num{font-family:var(--fm);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ── 상단: 안내판 머리 ── */
+.gnb{height:56px;display:flex;align-items:center;gap:22px;padding:0 18px;background:var(--board);border-bottom:1px solid var(--board-line);position:relative;z-index:1100}
+.brand{display:flex;align-items:center;gap:12px;width:442px;flex-shrink:0}
+.brand .ic{width:30px;height:30px;border-radius:4px;background:var(--amber);color:var(--board);display:flex;align-items:center;justify-content:center}
+.brand .ic svg{width:18px;height:18px;stroke-width:2.2}
+.brand b{font-size:17px;font-weight:800;letter-spacing:-.01em}
+.brand span{font-size:12px;color:var(--gray);font-weight:600}
+.clock{display:flex;gap:3px;align-items:center}
+.clock i{font-style:normal;width:22px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--board-2);border-radius:3px;font-family:var(--fm);font-weight:800;font-size:18px;color:var(--amber);position:relative;box-shadow:inset 0 -1px 0 rgba(255,255,255,.04)}
+.clock i::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.65)}
+.clock em{font-style:normal;color:var(--amber);font-weight:800;margin:0 1px}
+.clock small{font-size:12px;color:var(--gray);margin-left:10px;font-weight:600}
+.sp{flex:1}
+.search{display:flex;align-items:center;gap:8px;width:250px;height:34px;padding:0 12px;background:var(--board-2);border:1px solid var(--board-line);border-radius:4px;color:var(--gray)}
+.search input{border:0;background:none;outline:none;font:inherit;font-size:14px;color:var(--white);flex:1}
+.search input::placeholder{color:var(--gray-2)}
+.search:focus-within{border-color:var(--amber)}
+.gnb nav{display:flex;gap:2px}
+.gnb nav a{display:flex;align-items:center;gap:6px;height:34px;padding:0 11px;font-size:14px;font-weight:650;color:var(--gray);text-decoration:none;border-radius:4px}
+.gnb nav a:hover{color:var(--white);background:var(--board-2)}
+.gnb nav a.on{color:var(--board);background:var(--amber)}
+
+/* ── 본문 ── */
+.wrap{display:flex;height:calc(100% - 56px)}
+.board{width:478px;flex-shrink:0;display:flex;flex-direction:column;background:var(--board);border-right:1px solid var(--board-line)}
+.b-head{display:flex;align-items:flex-end;justify-content:space-between;padding:18px 18px 12px}
+.b-head h2{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.b-head h2 small{display:block;font-size:12px;color:var(--gray);font-weight:600;letter-spacing:0;margin-bottom:2px}
+.b-head .cnt{font-size:13px;color:var(--gray);font-weight:600}
+.b-head .cnt b{color:var(--amber);font-family:var(--fm);font-weight:800;font-size:15px}
+.cols,.row{display:grid;grid-template-columns:62px 1fr 92px 56px;gap:0 12px;align-items:center;padding:0 18px}
+.cols{height:30px;font-size:11px;font-weight:700;color:var(--gray-2);border-top:1px solid var(--board-line);border-bottom:1px solid var(--board-line)}
+.cols span:last-child,.row .no{text-align:right}
+.rows{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--board-line) transparent}
+.date{height:34px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:700;color:var(--amber-dim);background:var(--board);position:sticky;top:0;z-index:2;border-bottom:1px solid var(--board-line)}
+.row{min-height:46px;border-bottom:1px solid var(--board-line);cursor:pointer;transition:background .3s}
+.row .tm{font-family:var(--fm);font-weight:700;font-size:15px;color:var(--amber)}
+.row .vn{font-size:14.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--white)}
+.row .vn small{display:block;font-size:12px;color:var(--gray);font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{font-size:12.5px;color:var(--gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .no{font-family:var(--fm);font-size:12px;color:var(--gray-2);font-weight:700}
+.row:hover{background:var(--board-2)}
+.row.lit{background:var(--amber)}
+.row.lit .tm,.row.lit .vn,.row.lit .no{color:var(--board)}
+.row.lit .vn small,.row.lit .ct{color:#4a3a12}
+.periods{display:flex;border-top:1px solid var(--board-line)}
+.periods button{flex:1;height:46px;font-size:13px;font-weight:700;color:var(--gray);border-right:1px solid var(--board-line)}
+.periods button:last-child{border-right:0}
+.periods button.on{color:var(--amber);box-shadow:inset 0 -3px 0 var(--amber)}
+
+/* 지도 */
+.mapbox{flex:1;position:relative;background:var(--paper-2)}
+#map{position:absolute;inset:0}
+.leaflet-container{font-family:var(--ff);background:var(--paper-2)}
+.leaflet-control-attribution{font-size:10px}
+.ck{display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--board);color:var(--amber);font-family:var(--fm);font-weight:800;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);padding:0 6px;height:24px;white-space:nowrap}
+.pin{width:12px;height:12px;border-radius:2px;background:var(--board);border:2px solid var(--amber);transform:rotate(45deg);box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pin.lit{background:var(--amber);border-color:var(--board);width:18px;height:18px}
+
+.fab{position:absolute;right:18px;top:18px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.fab button{width:40px;height:40px;border-radius:4px;background:var(--board);color:var(--white);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+
+/* 탑승권 */
+.pass{position:absolute;left:24px;right:24px;bottom:24px;z-index:1000;display:flex;max-width:860px;margin:0 auto;filter:drop-shadow(0 10px 22px rgba(0,0,0,.22))}
+.p-main,.p-stub{background:var(--paper);color:var(--ink)}
+.p-main{flex:1;border-radius:8px 0 0 8px;display:flex;flex-direction:column;min-width:0;
+  -webkit-mask:radial-gradient(circle 9px at 100% 0,#0000 98%,#000) top right/100% 51% no-repeat,radial-gradient(circle 9px at 100% 100%,#0000 98%,#000) bottom right/100% 51% no-repeat;
+  mask:radial-gradient(circle 9px at 100% 0,#0000 98%,#000) top right/100% 51% no-repeat,radial-gradient(circle 9px at 100% 100%,#0000 98%,#000) bottom right/100% 51% no-repeat}
+.p-top{display:flex;align-items:center;gap:10px;height:36px;padding:0 16px;background:var(--board);color:var(--white);border-radius:8px 0 0 0;font-size:12px;font-weight:700}
+.p-top .lv{display:flex;align-items:center;gap:6px;color:var(--amber)}
+.p-top .lv i{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.p-top .sp{flex:1}
+.p-top .ctl{display:flex;gap:4px}
+.p-top .ctl button{height:26px;padding:0 9px;border-radius:3px;color:var(--white);font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;background:var(--board-2)}
+.p-top .ctl button.go{background:var(--amber);color:var(--board)}
+.p-top .ctl svg{width:14px;height:14px}
+.p-body{display:grid;grid-template-columns:auto 1fr auto;gap:0;padding:14px 16px 12px}
+.seg{padding:0 18px 0 0;margin-right:18px;border-right:1px dashed var(--hair);min-width:0}
+.seg:last-child{border:0;margin:0;padding:0}
+.lab{font-size:10.5px;font-weight:700;color:var(--ink-2);letter-spacing:.02em;margin-bottom:3px}
+.big{font-family:var(--fm);font-weight:800;font-size:32px;line-height:1;letter-spacing:-.03em}
+.big small{font-size:14px;color:var(--ink-2);margin-left:4px;font-weight:700}
+.vname{font-size:22px;font-weight:800;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vsub{font-size:13px;color:var(--ink-2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-foot{display:flex;gap:0;border-top:1px solid var(--hair);margin:0 16px;padding:9px 0 12px}
+.p-foot div{flex:1;font-size:13px;font-weight:650}
+.p-foot .lab{margin:0}
+.p-foot b{font-family:var(--fm);font-weight:700}
+.p-stub{width:168px;border-radius:0 8px 8px 0;border-left:2px dashed var(--hair);padding:14px 14px 12px;display:flex;flex-direction:column;
+  -webkit-mask:radial-gradient(circle 9px at 0 0,#0000 98%,#000) top left/100% 51% no-repeat,radial-gradient(circle 9px at 0 100%,#0000 98%,#000) bottom left/100% 51% no-repeat;
+  mask:radial-gradient(circle 9px at 0 0,#0000 98%,#000) top left/100% 51% no-repeat,radial-gradient(circle 9px at 0 100%,#0000 98%,#000) bottom left/100% 51% no-repeat}
+.p-stub .big{font-size:26px}
+.bar{margin-top:auto;height:44px;display:flex;align-items:stretch;gap:0}
+.bar i{background:var(--ink)}
+
+/* ── 모바일 ── */
+.mnav{display:none}
+@media (max-width:768px){
+  .gnb{height:52px;padding:0 12px;gap:10px}
+  .brand{width:auto}
+  .brand span,.brand b,.gnb nav,.clock small,#prog{display:none}
+  .clock i{width:18px;height:26px;font-size:15px}
+  .search{width:auto;flex:1;height:32px;min-width:0}
+  .search input{min-width:0}
+  .wrap{display:block;position:relative;height:calc(100% - 52px)}
+  .mapbox{position:absolute;inset:0 0 42% 0}
+  .board{position:absolute;left:0;right:0;bottom:0;height:42%;width:auto;border-right:0;border-radius:12px 12px 0 0;z-index:1010;padding-bottom:calc(60px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.35)}
+  .board::before{content:"";position:absolute;top:6px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:var(--board-line)}
+  .b-head{padding:16px 14px 8px}
+  .b-head h2{font-size:18px}
+  .cols{display:none}
+  .row{grid-template-columns:52px 1fr 48px;padding:0 14px;gap:0 10px}
+  .row .ct{display:none}
+  .date{padding:0 14px}
+  .periods{display:none}
+  .pass{left:10px;right:10px;bottom:12px}
+  .p-top .ctl button span{display:none}
+  .p-body{grid-template-columns:1fr;padding:10px 12px 8px}
+  .p-body .seg:first-child{display:none}
+  .seg{border:0;margin:0;padding:0}
+  .p-body .seg:last-child{display:none}
+  .vname{font-size:18px}
+  .p-foot{margin:0 12px;padding:7px 0 9px}
+  .p-foot div:nth-child(3){display:none}
+  .p-stub{width:92px;padding:10px}
+  .p-stub .big{font-size:18px}
+  .bar{height:30px}
+  .fab{right:10px;top:10px}
+  .mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1200;background:var(--board);border-top:1px solid var(--board-line);padding-bottom:env(safe-area-inset-bottom);height:calc(58px + env(safe-area-inset-bottom))}
+  .mnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;color:var(--gray);text-decoration:none}
+  .mnav a.on{color:var(--amber)}
+  .mnav svg.lucide{width:21px;height:21px}
+}
+</style>
+</head>
+<body>
+<header class="gnb">
+  <div class="brand"><div class="ic"><i data-lucide="map-pin"></i></div><b>Swarm Insights</b><span>방문 안내판</span></div>
+  <div class="clock" id="clock"></div>
+  <div class="sp"></div>
+  <label class="search"><i data-lucide="search"></i><input placeholder="장소·분류 찾기"></label>
+  <nav>
+    <a class="on" href="#"><i data-lucide="map"></i>지도</a>
+    <a href="#"><i data-lucide="chart-no-axes-column"></i>통계</a>
+    <a href="#"><i data-lucide="pencil-line"></i>기록 관리</a>
+    <a href="#" title="로그아웃"><i data-lucide="log-out"></i></a>
+  </nav>
+</header>
+<div class="wrap">
+  <aside class="board">
+    <div class="b-head"><h2><small>최근 3개월</small>방문 기록</h2><div class="cnt"><b id="cnt"></b> 번 방문</div></div>
+    <div class="cols"><span>시각</span><span>장소</span><span>분류</span><span>순번</span></div>
+    <div class="rows" id="rows"></div>
+    <div class="periods"><button>1주</button><button>1개월</button><button class="on">3개월</button><button>1년</button><button>전체</button></div>
+  </aside>
+  <section class="mapbox">
+    <div id="map"></div>
+    <div class="fab"><button title="내 위치"><i data-lucide="locate-fixed"></i></button><button title="히트맵"><i data-lucide="flame"></i></button></div>
+    <div class="pass">
+      <div class="p-main">
+        <div class="p-top"><span class="lv"><i></i>경로 재생 중</span><span id="prog" class="num" style="color:var(--gray)"></span><span class="sp"></span>
+          <div class="ctl"><button><i data-lucide="gauge"></i><span>보통</span></button><button><i data-lucide="square"></i><span>정지</span></button><button class="go"><i data-lucide="skip-forward"></i><span>다음</span></button></div></div>
+        <div class="p-body">
+          <div class="seg"><div class="lab">날짜</div><div class="big" id="p-d"></div></div>
+          <div class="seg"><div class="lab">장소</div><div class="vname" id="p-v"></div><div class="vsub" id="p-a"></div></div>
+          <div class="seg"><div class="lab">시각</div><div class="big" id="p-t"></div></div>
+        </div>
+        <div class="p-foot"><div><div class="lab">분류</div><span id="p-c"></span></div><div><div class="lab">이전 방문</div><b id="p-prev"></b></div><div><div class="lab">이 장소 방문</div><b id="p-cnt"></b></div></div>
+      </div>
+      <div class="p-stub"><div class="lab">순번</div><div class="big" id="p-no"></div><div class="bar" id="bar"></div></div>
+    </div>
+  </section>
+</div>
+<nav class="mnav">
+  <a class="on" href="#"><i data-lucide="map"></i>지도</a>
+  <a href="#"><i data-lucide="list"></i>기록</a>
+  <a href="#"><i data-lucide="pencil-line"></i>추가</a>
+  <a href="#"><i data-lucide="chart-no-axes-column"></i>통계</a>
+</nav>
+<script>
+const K=t=>new Date(t*1000+9*3600000);
+lucide.createIcons();
+const WD=['일','월','화','수','목','금','토'], pad=n=>String(n).padStart(2,'0');
+const now=new Date(Date.now()+9*3600000); document.getElementById('clock').innerHTML=[...pad(now.getUTCHours())].map(c=>`<i>${c}</i>`).join('')+'<em>:</em>'+[...pad(now.getUTCMinutes())].map(c=>`<i>${c}</i>`).join('')+`<small>${now.getUTCMonth()+1}월 ${now.getUTCDate()}일 ${WD[now.getUTCDay()]}요일</small>`;
+(async()=>{
+  const raw=await (await fetch('/api/data')).json();
+  const all=raw.map(d=>({...d,t:+d.FSQ_UNIXTIME,lat:+d.LAT,lng:+d.LNG})).filter(d=>d.t>0&&!isNaN(d.lat)).sort((a,b)=>a.t-b.t);
+  all.forEach((d,i)=>d.no=i+1);
+  const last=all[all.length-1].t, from=last-90*86400, sel=all.filter(d=>d.t>=from);
+  document.getElementById('cnt').textContent=sel.length.toLocaleString();
+  const recent=sel.slice(-60).reverse(), pv=recent[3];
+  let html='',cur='';
+  recent.forEach(d=>{const dt=K(d.t),k=dt.toDateString();
+    if(k!==cur){cur=k;html+=`<div class="date">${dt.getUTCFullYear()}년 ${dt.getUTCMonth()+1}월 ${dt.getUTCDate()}일 ${WD[dt.getUTCDay()]}요일</div>`;}
+    const gu=(d.ADDRESS||'').split(' ').find(w=>/(구|시|군)$/.test(w)&&!/특별시|광역시/.test(w))||d.CITY||'';
+    html+=`<div class="row${d===pv?' lit':''}"><span class="tm">${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}</span><span class="vn">${d.VENUE}<small>${gu}${d.SHOUT?' · “'+d.SHOUT+'”':''}</small></span><span class="ct">${d.CATEGORY||''}</span><span class="no">${d.no.toLocaleString()}</span></div>`;});
+  document.getElementById('rows').innerHTML=html;
+  const pd=K(pv.t);
+  document.getElementById('p-d').innerHTML=`${pd.getUTCMonth()+1}.${pad(pd.getUTCDate())}<small>${WD[pd.getUTCDay()]}</small>`;
+  document.getElementById('p-t').textContent=`${pad(pd.getUTCHours())}:${pad(pd.getUTCMinutes())}`;
+  document.getElementById('p-v').textContent=pv.VENUE;
+  document.getElementById('p-a').textContent=(pv.ADDRESS||'').replace(/^\d{5}\s*대한민국\s*/,'');
+  document.getElementById('p-c').textContent=pv.CATEGORY;
+  const same=all.filter(d=>d.VENUE===pv.VENUE), prev=same.filter(d=>d.t<pv.t).pop();
+  document.getElementById('p-prev').textContent=prev?(()=>{const x=K(prev.t);return `${x.getUTCFullYear()}.${pad(x.getUTCMonth()+1)}.${pad(x.getUTCDate())}`})():'첫 방문';
+  document.getElementById('p-cnt').textContent=same.length.toLocaleString()+'번째 중 '+(same.indexOf(pv)+1);
+  document.getElementById('p-cnt').textContent=`${same.indexOf(pv)+1} / ${same.length}`;
+  document.getElementById('p-no').textContent=pv.no.toLocaleString();
+  document.getElementById('prog').textContent=`${recent.length-3} / ${sel.length}`;
+  // 순번 → 막대 무늬 (FSQ_ID에서 뽑음)
+  let h=0; for(const c of pv.FSQ_ID) h=(h*31+c.charCodeAt(0))>>>0;
+  const bar=document.getElementById('bar'); let s='';
+  for(let i=0;i<34;i++){h=(h*1103515245+12345)>>>0;const w=1+(h>>>28)%3,g=1+(h>>>24)%2;s+=`<i style="width:${w}px;margin-right:${g}px"></i>`;} bar.innerHTML=s;
+
+  const map=L.map('map',{zoomControl:false}).setView([pv.lat,pv.lng],12);
+  const tiles=L.tileLayer('https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2mra_1_20f52391c4787f3b6ed18089',{attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+  NaverBase.attach(map,{tiles:()=>tiles});
+  const cl=L.markerClusterGroup({maxClusterRadius:48,showCoverageOnHover:false,iconCreateFunction:c=>L.divIcon({className:'',html:`<div class="ck">${c.getChildCount().toLocaleString()}</div>`,iconSize:null})});
+  sel.forEach(d=>cl.addLayer(L.marker([d.lat,d.lng],{icon:L.divIcon({className:'',html:`<div class="pin${d===pv?' lit':''}"></div>`,iconSize:[12,12]})})));
+  map.addLayer(cl);
+  const path=recent.slice(3,11).reverse().map(d=>[d.lat,d.lng]);
+  L.polyline(path,{color:'#111317',weight:2,dashArray:'6 6'}).addTo(map);
+  L.polyline(path.slice(-2),{color:'#FFC23D',weight:4}).addTo(map);
+})();
+</script>
+</body>
+</html>
