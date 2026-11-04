@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
+    <script src="/static/naver-base.js?v=2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -204,7 +206,8 @@
             map = L.map('mini-map').setView([37.5665, 126.9780], 13);
             const CARTO_KEY = 'cb1_2mra_1_20f52391c4787f3b6ed18089';
             const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>';
-            L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`, { attribution: CARTO_ATTR }).addTo(map);
+            const baseTiles = L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`, { attribution: CARTO_ATTR }).addTo(map);
+            NaverBase.attach(map, { tiles: () => baseTiles, theme: 'light' });
             
             map.on('click', (e) => {
                 const lat = e.latlng.lat.toFixed(6);

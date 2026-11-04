@@ -22,6 +22,12 @@ def log(msg):
 
 app = Flask(__name__)
 
+
+@app.context_processor
+def _naver_map_key():
+    # 네이버 지도 JS 키 ID (공개값, 도메인 등록으로 인증)
+    return {'naver_map_key_id': os.getenv('NAVER_MAP_KEY_ID', '')}
+
 # MariaDB Configuration
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "mariadb"),

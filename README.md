@@ -15,6 +15,7 @@ Foursquare Swarm 체크인 데이터를 **인터랙티브 웹 지도**에 시각
 
 ### 📍 지도 시각화
 - **Leaflet.js** 기반 인터랙티브 지도
+- **네이버 지도 바탕**: 지도 가운데가 한국이고 확대 7 이상이면 Leaflet 밑에 네이버 지도를 깔고 위치·확대를 맞춤 (`static/naver-base.js`). 해외로 가거나 네이버 로드·인증이 실패하면 기존 CARTO 타일로 자동 전환. 마커·클러스터·히트맵은 그대로 Leaflet이 그림
 - **MarkerCluster**를 활용한 대량 데이터 효율화 (9,000+건)
 - 마커 클릭 시 장소명, 카테고리, 시간, 사진, 코멘트 팝업 표시
 - 타임캡슐 스크러버로 시간축 탐색
@@ -68,6 +69,7 @@ python-dotenv                   # 환경변수 관리
 
 ### Frontend 라이브러리 (CDN)
 - **Leaflet.js** (1.9.4): 인터랙티브 지도
+- **네이버 지도 JS API v3**: 국내 바탕 지도 (`.env`의 `NAVER_MAP_KEY_ID`, 등록 도메인으로 인증)
 - **Leaflet MarkerCluster** (1.5.3): 마커 클러스터링
 - **Chart.js** (4.4.1): 통계 차트
 - **Leaflet.Heat**: 히트맵 시각화

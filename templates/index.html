@@ -18,6 +18,8 @@
     <!-- JS Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
+    <script src="/static/naver-base.js?v=2"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
@@ -530,6 +532,7 @@
             let theme = document.getElementById('map-theme-select').value;
             if (theme === 'auto') theme = getTheme();
             currentTiles = L.tileLayer(tileSets[theme], { attribution: CARTO_ATTR }).addTo(map);
+            NaverBase.attach(map, { tiles: () => currentTiles, theme });
             markers = L.markerClusterGroup({ 
                 maxClusterRadius: 50,
                 showCoverageOnHover: false,
@@ -950,6 +953,7 @@
             let t = e.target.value === 'auto' ? getTheme() : e.target.value;
             map.removeLayer(currentTiles);
             currentTiles = L.tileLayer(tileSets[t], { attribution: CARTO_ATTR }).addTo(map);
+            map._nv.setTheme(t);
         };
         document.getElementById('heat-toggle-chk').onclick = (e) => { isHeatMode = e.target.checked; applyAllFilters(); };
         document.getElementById('search-input').oninput = applyAllFilters;

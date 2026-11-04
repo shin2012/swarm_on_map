@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>window.NAVER_MAP_KEY_ID = {{ naver_map_key_id|tojson }};</script>
+    <script src="/static/naver-base.js?v=2"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -552,12 +554,13 @@ async function fetchData() {
 function initMap() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     map = L.map('map', { zoomControl: false }).setView([37.5665, 126.9780], 11);
-    L.tileLayer(
+    const baseTiles = L.tileLayer(
         isDark
             ? `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
             : `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
         { attribution: CARTO_ATTR }
     ).addTo(map);
+    NaverBase.attach(map, { tiles: () => baseTiles, theme: isDark ? 'dark' : 'light' });
 
     markers = L.markerClusterGroup({
         maxClusterRadius: 50, showCoverageOnHover: false,
@@ -1026,11 +1029,12 @@ function openMapPicker() {
     if (!pickerMapInst) {
         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         pickerMapInst = L.map('picker-map', { zoomControl: false }).setView([37.5665, 126.9780], 13);
-        L.tileLayer(
+        const pickerTiles = L.tileLayer(
             isDark ? `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
                    : `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_KEY}`,
             { attribution: CARTO_ATTR }
         ).addTo(pickerMapInst);
+        NaverBase.attach(pickerMapInst, { tiles: () => pickerTiles, theme: isDark ? 'dark' : 'light' });
 
         pickerMapInst.on('click', async e => {
             const lat = e.latlng.lat.toFixed(6);
