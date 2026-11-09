@@ -811,8 +811,10 @@ def carplay_event():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # 단축어 재시도 대비: 같은 이벤트·같은 시각(초 단위)이 이미 있으면 새로 넣지 않고 그 행을 돌려줌
-        cursor.execute('SELECT id FROM FSQ_CarPlay WHERE event_type=%s AND event_time=%s LIMIT 1', (event_type, event_time))
+        # 재시도·이중 전송 대비: 같은 이벤트가 2분 안에 이미 있으면 새로 넣지 않고 그 행을 돌려줌
+        # (단축어와 실라쥬 앱이 함께 보내는 동안 몇 초 차이로 두 번 들어오는 것 방지)
+        cursor.execute('SELECT id FROM FSQ_CarPlay WHERE event_type=%s AND event_time BETWEEN %s - INTERVAL 120 SECOND AND %s + INTERVAL 120 SECOND '
+                       'ORDER BY ABS(TIMESTAMPDIFF(SECOND, event_time, %s)) LIMIT 1', (event_type, event_time, event_time, event_time))
         dup = cursor.fetchone()
         if dup:
             cursor.close()
