@@ -834,6 +834,63 @@ def carplay_event():
 
     return jsonify({'status': 'ok', 'id': insert_id, 'event': event_type, 'time': event_time}), 201
 
+@app.route('/api/autocheckin', methods=['POST'])
+def autocheckin():
+    """실라쥬 자동 체크인(장소 반경 진입 확정) → FSQ_Swarm 행. IFTTT→캘린더→람다 경로를 대신함.
+    장소 값은 그 venueId 의 가장 최근 체크인에서 복사. 같은 장소 ±10분 안에 체크인이 있으면 저장 안 함.
+    CALENDAR_SENT='N' → 람다가 캘린더에 올림."""
+    if not check_carplay_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    vid = (data.get('venue_id') or '').strip()
+    try:
+        ts = int(float(data.get('timestamp')))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'timestamp(유닉스 초) 필요'}), 400
+    if not vid:
+        return jsonify({'error': 'venue_id 필요'}), 400
+    from datetime import timedelta
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT FSQ_ID, TIME_KST FROM FSQ_Swarm WHERE FSQ_VENUEID=%s AND FSQ_UNIXTIME BETWEEN %s AND %s LIMIT 1",
+                    (vid, ts - 600, ts + 600))
+        dup = cur.fetchone()
+        if dup:
+            print(f"[autocheckin] 중복 {vid} {ts} ← {dup['FSQ_ID']}", flush=True)
+            return jsonify({'success': True, 'duplicate': True, 'existing': dup['FSQ_ID']})
+        cur.execute("""SELECT VENUE, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS, COUNTRY, COUNTRYCODE, CITY, FSQ_TIMEZONEOFFSET,
+                              KAKAO_PLACE_ID, TMAP_POI_ID
+                       FROM FSQ_Swarm WHERE FSQ_VENUEID=%s ORDER BY FSQ_UNIXTIME DESC LIMIT 1""", (vid,))
+        src = cur.fetchone()
+        if not src:
+            return jsonify({'error': '이 장소의 이전 체크인이 없음'}), 404
+        off = int(src['FSQ_TIMEZONEOFFSET'] or 540)
+        utc = datetime.fromtimestamp(ts, tz=timezone.utc)
+        f = "%Y-%m-%d %H:%M:%S"
+        t_utc, t_kst, t_loc = (utc.strftime(f), (utc + timedelta(hours=9)).strftime(f),
+                               (utc + timedelta(minutes=off)).strftime(f))
+        fsq_id = f"ManuallySaved_{ts}"
+        cur.execute("SELECT 1 FROM FSQ_Swarm WHERE FSQ_ID=%s", (fsq_id,))
+        if cur.fetchone():
+            fsq_id = f"ManuallySaved_{ts + 1}"
+        cur.execute("""INSERT INTO FSQ_Swarm (FSQ_ID, FSQ_UNIXTIME, FSQ_TIMEZONEOFFSET, VENUE, VENUE_SUB, CATEGORY, LAT, LNG, ADDRESS,
+                         COUNTRY, COUNTRYCODE, CITY, TIME_LOCAL, TIME_KST, TIME_UTC, SHOUT, PHOTO, GCal_EventID, MODIFIED,
+                         FSQ_VENUEID, FSQ_ISMAYER, FSQ_ISPRIVATE, CALENDAR_SENT, KAKAO_PLACE_ID, TMAP_POI_ID)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'','',NULL,NOW(),%s,'N','N','N',%s,%s)""",
+                    (fsq_id, ts, off, src['VENUE'], src['VENUE_SUB'] or '', src['CATEGORY'] or '', src['LAT'], src['LNG'],
+                     src['ADDRESS'] or '', src['COUNTRY'], src['COUNTRYCODE'], src['CITY'], t_loc, t_kst, t_utc, vid,
+                     src['KAKAO_PLACE_ID'], src['TMAP_POI_ID']))
+        conn.commit()
+        print(f"[autocheckin] 저장 {fsq_id} {src['VENUE']} {t_kst} ({data.get('device', '')})", flush=True)
+        return jsonify({'success': True, 'fsq_id': fsq_id, 'venue': src['VENUE'], 'time_kst': t_kst})
+    except Exception as e:
+        log(f"autocheckin error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route('/api/carplay/history', methods=['GET'])
 def carplay_history():
     if not check_carplay_auth():
