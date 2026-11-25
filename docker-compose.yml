@@ -6,7 +6,7 @@ services:
     ports:
       - "5005:5005"
     env_file:
-      - .env
+      - /vault/fsq_map/secrets.env
     networks:
       oci_bridge:
         ipv4_address: 172.19.0.2
